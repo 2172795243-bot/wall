@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园万事屋 | 我们的树洞</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <style>
+        :root {
+            --primary: #0984e3;
+            --notice-bg: #fff9db;
+            --notice-border: #fab005;
+            --bg: #f0f2f5;
+            --radius: 16px;
+        }
+
+        body { margin: 0; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: #2d3436; }
+        
+        /* 导航栏 */
+        .app-nav { 
+            background: #fff; height: 60px; display: flex; align-items: center; 
+            justify-content: space-between; padding: 0 20px; position: sticky; 
+            top: 0; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+        }
+        .nav-logo { font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 1px; }
+        .user-pill { background: #f1f2f6; padding: 6px 15px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+
+        .container { max-width: 580px; margin: 20px auto; padding: 0 15px; }
+
+        /* 发布器 */
+        .post-box { background: white; padding: 20px; border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        textarea { 
+            width: 100%; border: 1px solid #edf2f7; background: #f8fafc; 
+            padding: 15px; border-radius: 12px; resize: none; font-size: 16px; 
+            box-sizing: border-box; outline: none; transition: 0.3s;
+        }
+        textarea:focus { border-color: var(--primary); background: #fff; }
+        .btn-pub { background: var(--primary); color: white; border: none; padding: 10px 25px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-pub:active { transform: scale(0.95); }
+
+        /* 管理员勾选框 */
+        .admin-opt { font-size: 12px; color: var(--primary); margin-top: 10px; display: flex; align-items: center; gap: 5px; }
+
+        /* 帖子卡片 */
+        .card { background: white; border-radius: var(--radius); padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.02); transition: 0.3s; }
+        .is-notice { background: var(--notice-bg) !important; border: 1px solid var(--notice-border) !important; }
+        
+        .card-header { display: flex; align-items: center; margin-bottom: 12px; }
+        .u-icon { width: 35px; height: 35px; border-radius: 10px; background: #dfe6e9; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-right: 12px; color: #636e72; }
+        .notice-icon { background: var(--notice-border); color: white; }
+        .u-name { font-weight: 700; font-size: 15px; flex: 1; }
+        .badge-me { font-size: 10px; background: #e1f5fe; color: #039be5; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
+        .del-btn { color: #ff7675; cursor: pointer; font-size: 12px; font-weight: 600; }
+
+        .card-body { font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #2d3436; margin-bottom: 15px; }
+
+        .card-footer { display: flex; gap: 25px; border-top: 1px solid #f1f2f6; padding-top: 15px; }
+        .f-btn { cursor: pointer; font-size: 13px; color: #636e72; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+        .f-btn:hover { color: var(--primary); }
+
+        /* 评论区 */
+        .cmt-box { background: rgba(0,0,0,0.03); border-radius: 10px; margin-top: 12px; padding: 12px; }
+        .cmt-item { font-size: 13px; margin-bottom: 6px; color: #4b6584; }
+        .cmt-item b { color: #2d3436; }
+
+        /* 登录页 */
+        .auth-card { background: white; padding: 40px 30px; border-radius: 24px; text-align: center; margin-top: 60px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .in-field { width: 100%; padding: 14px; margin: 12px 0; border-radius: 12px; border: 1px solid #ddd; box-sizing: border-box; font-size: 15px; }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="nav" class="app-nav hidden">
+    <div class="nav-logo">🏛️ 校园万事屋</div>
+    <div id="u-status" class="user-pill"></div>
+</div>
+
+<div class="container">
+    <div id="v-auth" class="auth-card">
+        <h2 style="margin-top:0">欢迎回来</h2>
+        <p style="color:#636e72; font-size:14px">输入昵称与密码开启校园探索</p>
+        <input id="in-u" class="in-field" type="text" placeholder="你的昵称">
+        <input id="in-p" class="in-field" type="password" placeholder="你的密码">
+        <button class="btn-pub" style="width:100%; margin-top:10px;" onclick="handleLogin()">进入广场</button>
+    </div>
+
+    <div id="v-hub" class="hidden">
+        <div class="post-box">
+            <textarea id="msg-input" placeholder="此刻想分享什么？（吐槽、寻物、表白...）"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top:10px;">
+                <div id="admin-ctrl" class="admin-opt hidden">
+                    <input type="checkbox" id="chk-notice"> <label for="chk-notice">置顶公告</label>
+                </div>
+                <div style="flex:1"></div>
+                <button class="btn-pub" onclick="sendMsg()">发布动态</button>
+            </div>
+        </div>
+        <div id="feed-list">加载中...</div>
+    </div>
+</div>
+
+<script>
+    const sb = supabase.createClient("https://ljopokentjagtxwdlzma.supabase.co", "sb_publishable_OgGGB2YH9O8rv0Vg3K8jEA_rbxA7ZHk");
+
+    let me = null;
+    let isRoot = false;
+
+    // --- 权限配置 ---
+    const ROOT_NAME = "何梓晨";
+    const ROOT_PASS = "123456";
+
+    window.onload = () => {
+        const local = localStorage.getItem('hub_session');
+        if(local) {
+            me = JSON.parse(local);
+            applyRoot(me.name, me.pass);
+            showHub();
+        }
+    };
+
+    function handleLogin() {
+        const u = document.getElementById('in-u').value.trim();
+        const p = document.getElementById('in-p').value.trim();
+        if(!u || !p) return alert("请完整填写");
+
+        me = { name: u, pass: p, id: 'u_' + Date.now() };
+        localStorage.setItem('hub_session', JSON.stringify(me));
+        applyRoot(u, p);
+        showHub();
+    }
+
+    function applyRoot(u, p) {
+        if(u === ROOT_NAME && p === ROOT_PASS) {
+            isRoot = true;
+            document.getElementById('admin-ctrl').classList.remove('hidden');
+        }
+    }
+
+    function showHub() {
+        document.getElementById('v-auth').classList.add('hidden');
+        document.getElementById('v-hub').classList.remove('hidden');
+        document.getElementById('nav').classList.remove('hidden');
+        document.getElementById('u-status').innerText = (isRoot ? "🛡️ 管理员: " : "👤 ") + me.name;
+        refresh();
+    }
+
+    async function sendMsg() {
+        const content = document.getElementById('msg-input').value.trim();
+        if(!content) return;
+        
+        const setNotice = isRoot && document.getElementById('chk-notice').checked;
+
+        const { error } = await sb.from('posts').insert([
+            { username: me.name, content: content, user_id: me.name, is_notice: setNotice }
+        ]);
+
+        if(!error) {
+            document.getElementById('msg-input').value = "";
+            if(isRoot) document.getElementById('chk-notice').checked = false;
+            refresh();
+        } else {
+            alert("发布失败，请确认数据库已添加 is_notice 列");
+        }
+    }
+
+    async function refresh() {
+        // 排序逻辑：置顶公告始终第一，其余按ID倒序
+        const { data: posts } = await sb.from('posts').select('*').order('is_notice', { ascending: false }).order('id', { ascending: false });
+        const { data: cmts } = await sb.from('comments').select('*');
+
+        const list = document.getElementById('feed-list');
+        if(!posts || posts.length === 0) {
+            list.innerHTML = "<p style='text-align:center; color:#999; margin-top:40px;'>暂无动态，快来抢沙发吧！</p>";
+            return;
+        }
+
+        list.innerHTML = posts.map(p => {
+            const isMine = p.user_id === me.name;
+            const myCmts = (cmts || []).filter(c => c.post_id === p.id);
+            
+            return `
+                <div class="card ${p.is_notice ? 'is-notice' : ''}">
+                    <div class="card-header">
+                        <div class="u-icon ${p.is_notice ? 'notice-icon' : ''}">${p.is_notice ? '📌' : p.username.charAt(0).toUpperCase()}</div>
+                        <div class="u-name">
+                            ${p.is_notice ? '<span style="color:#e67e22">[置顶] </span>' : ''}
+                            ${p.username}
+                            ${isMine ? '<span class="badge-me">我</span>' : ''}
+                        </div>
+                        ${(isRoot || isMine) ? `<div class="del-btn" onclick="delPost(${p.id})">删除</div>` : ''}
+                    </div>
+                    <div class="card-body">${p.content}</div>
+                    <div class="card-footer">
+                        <div class="f-btn" onclick="doLike(${p.id}, ${p.likes})">👍 ${p.likes || 0}</div>
+                        <div class="f-btn" onclick="doCmt(${p.id})">💬 评论 (${myCmts.length})</div>
+                    </div>
+                    ${myCmts.length > 0 ? `
+                        <div class="cmt-box">
+                            ${myCmts.map(c => `<div class="cmt-item"><b>${c.username}:</b> ${c.content}</div>`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function doLike(id, n) { await sb.from('posts').update({ likes: (n || 0) + 1 }).eq('id', id); refresh(); }
+    async function doCmt(pid) {
+        const val = prompt("回复：");
+        if(val) {
+            await sb.from('comments').insert([{ post_id: pid, content: val, username: me.name }]);
+            refresh();
+        }
+    }
+    async function delPost(id) {
+        if(confirm(isRoot ? "确定删除此帖（管理权限）？" : "确定删除吗？")) {
+            await sb.from('posts').delete().eq('id', id);
+            refresh();
+        }
+    }
+</script>
+</body>
+</html>
