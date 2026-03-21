@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>校园万事屋 | 消息提醒版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <style>
+        :root { --primary: #0984e3; --admin-color: #d63031; --bg: #f0f2f5; --radius: 16px; }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); padding-bottom: 80px; }
+        
+        /* 底部导航与红点 */
+        .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #fff; display: flex; border-top: 1px solid #eee; z-index: 2000; padding-bottom: env(safe-area-inset-bottom); }
+        .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: #636e72; cursor: pointer; position: relative; }
+        .tab-item.active { color: var(--primary); font-weight: bold; }
+        
+        /* 红点样式 */
+        .badge { 
+            position: absolute; top: 8px; right: 25%; 
+            background: #ff4757; color: white; border-radius: 10px; 
+            min-width: 16px; height: 16px; font-size: 10px; 
+            display: flex; align-items: center; justify-content: center; 
+            padding: 0 4px; box-sizing: border-box; font-weight: bold;
+            border: 2px solid #fff;
+        }
+
+        .container { max-width: 580px; margin: 0 auto; padding: 15px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .card { background: white; border-radius: var(--radius); padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); position: relative; }
+        .is-notice { background: #fff9db !important; border: 1px solid #fab005; }
+        .u-head { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; margin-right: 12px; background: #eee; }
+        .u-info { display: flex; align-items: center; margin-bottom: 10px; }
+        .admin-tag { color: var(--admin-color); font-weight: bold; font-size: 11px; border: 1px solid var(--admin-color); padding: 0 4px; border-radius: 4px; margin-left: 5px; }
+        .cmt-area { background: #f8fafc; border-radius: 10px; padding: 8px; margin-top: 10px; font-size: 13px; }
+        .cmt-item { padding: 4px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .btn-blue { background: var(--primary); color: white; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .in-field { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; outline: none; }
+        .del-btn { color: #ff7675; cursor: pointer; font-size: 12px; }
+        .hidden { display: none !important; }
+
+        /* 聊天窗消息样式优化 */
+        .msg-bubble { padding: 10px 15px; border-radius: 15px; margin-bottom: 10px; max-width: 85%; line-height: 1.5; font-size: 14px; }
+        .msg-mine { background: var(--primary); color: #fff; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 2px; }
+        .msg-other { background: #e4e6eb; color: #000; align-self: flex-start; border-bottom-left-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="page-auth" class="container" style="margin-top: 40px;">
+    <div class="card" style="text-align:center; padding:30px;">
+        <div id="avatar-box" style="width:80px;height:80px;border-radius:50%;background:#f0f2f5;margin:0 auto 15px;overflow:hidden;border:2px dashed #ccc;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="document.getElementById('file-avatar').click()">
+            <span id="a-plus">+</span><img id="a-img" class="hidden" style="width:100%;height:100%;object-fit:cover;">
+        </div>
+        <input type="file" id="file-avatar" hidden accept="image/*" onchange="uploadImg(this, 'me')">
+        <h3>校园万事屋 Pro</h3>
+        <input id="login-u" class="in-field" placeholder="设置你的昵称">
+        <input id="login-p" class="in-field" type="password" placeholder="设置你的密码">
+        <button class="btn-blue" style="width:100%" onclick="doLogin()">进入系统</button>
+    </div>
+</div>
+
+<div id="app-content" class="hidden">
+    <div id="page-chat" class="page container">
+        <h2 style="margin: 10px 0;">消息</h2>
+        <div id="chat-session-list">暂无聊天记录</div>
+    </div>
+
+    <div id="page-hub" class="page container active">
+        <div class="card">
+            <textarea id="post-txt" class="in-field" style="height:70px; border:none; background:transparent;" placeholder="此刻在想什么..."></textarea>
+            <div id="post-pre" class="hidden"><img id="pre-img" style="width:100px; border-radius:8px; margin-top:10px;"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                <span onclick="document.getElementById('file-post').click()" style="font-size:24px; cursor:pointer;">📷</span>
+                <input type="file" id="file-post" hidden accept="image/*" onchange="uploadImg(this, 'post')">
+                <div id="adm-box" class="hidden" style="font-size:12px; color:var(--admin-color);"><input type="checkbox" id="chk-notice"> 置顶公告</div>
+                <button class="btn-blue" onclick="publish()">发布</button>
+            </div>
+        </div>
+        <div id="feed"></div>
+    </div>
+
+    <div id="page-me" class="page container">
+        <div class="card" style="text-align:center;">
+            <img id="my-big-head" class="u-head" style="width:80px; height:80px; margin:0 auto 10px;">
+            <h2 id="my-name"></h2>
+            <div id="my-tag"></div>
+            <button onclick="logout()" style="margin-top:20px; border:none; background:none; color:#ff7675;">退出登录</button>
+        </div>
+        <h4>我的足迹</h4>
+        <div id="my-feed"></div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab-item" id="tab-chat" onclick="switchPage('chat')">
+            <span>💬</span>消息
+            <div id="msg-dot" class="badge hidden">0</div>
+        </div>
+        <div class="tab-item active" onclick="switchPage('hub')"><span>🏛️</span>广场</div>
+        <div class="tab-item" onclick="switchPage('me')"><span>👤</span>我</div>
+    </div>
+</div>
+
+<div id="chat-window" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#f0f2f5; z-index:3000; display:flex; flex-direction:column;">
+    <div style="background:#fff; padding:15px; display:flex; align-items:center; border-bottom:1px solid #eee; padding-top: calc(15px + env(safe-area-inset-top));">
+        <span onclick="closeChat()" style="cursor:pointer; font-size:20px; margin-right:15px;">⬅️</span>
+        <b id="chat-target-name">...</b>
+    </div>
+    <div id="chat-msgs" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column;"></div>
+    <div style="padding:10px; background:#fff; display:flex; gap:10px; padding-bottom: calc(10px + env(safe-area-inset-bottom));">
+        <input id="chat-input" class="in-field" style="margin:0;" placeholder="发送私信...">
+        <button class="btn-blue" onclick="sendMsg()">发送</button>
+    </div>
+</div>
+
+<script>
+    const sb = supabase.createClient("https://ljopokentjagtxwdlzma.supabase.co", "sb_publishable_OgGGB2YH9O8rv0Vg3K8jEA_rbxA7ZHk");
+    let me = null, tempPostImg = "", chatTarget = null, lastMsgId = 0;
+    const ADMIN_NAME = "何梓晨";
+
+    window.onload = () => {
+        const saved = localStorage.getItem('v12_badge');
+        if(saved) { me = JSON.parse(saved); initApp(); }
+    };
+
+    function doLogin() {
+        const u = document.getElementById('login-u').value.trim();
+        const p = document.getElementById('login-p').value.trim();
+        if(!u) return;
+        me = { name: u, pass: p, avatar: document.getElementById('a-img').src };
+        localStorage.setItem('v12_badge', JSON.stringify(me));
+        initApp();
+    }
+
+    function initApp() {
+        document.getElementById('page-auth').classList.add('hidden');
+        document.getElementById('app-content').classList.remove('hidden');
+        document.getElementById('my-name').innerText = me.name;
+        document.getElementById('my-big-head').src = me.avatar || '';
+        if(me.name === ADMIN_NAME) {
+            document.getElementById('adm-box').classList.remove('hidden');
+            document.getElementById('my-tag').innerHTML = '<span class="admin-tag">总管理员</span>';
+        }
+        refreshAll();
+        // 5秒轮询新消息和更新红点
+        setInterval(checkNewMessages, 5000);
+    }
+
+    // 页面切换
+    function switchPage(p) {
+        document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+        document.querySelectorAll('.tab-item').forEach(e => e.classList.remove('active'));
+        document.getElementById('page-'+p).classList.add('active');
+        event.currentTarget.classList.add('active');
+        refreshAll();
+    }
+
+    // 核心：检查未读消息并更新红点
+    async function checkNewMessages() {
+        if(!me) return;
+        // 获取发给我的所有消息
+        const { data } = await sb.from('messages').select('id, sender, is_read').eq('receiver', me.name);
+        if(!data) return;
+        
+        // 计算未读数（即 is_read 为 false 的）
+        const unreadCount = data.filter(m => !m.is_read).length;
+        const dot = document.getElementById('msg-dot');
+        
+        if(unreadCount > 0) {
+            dot.innerText = unreadCount > 99 ? '99+' : unreadCount;
+            dot.classList.remove('hidden');
+        } else {
+            dot.classList.add('hidden');
+        }
+        
+        // 如果当前在聊天窗口，刷新消息流
+        if(chatTarget) loadPrivateMsgs();
+        // 如果在消息页，刷新列表
+        if(document.getElementById('page-chat').classList.contains('active')) loadChats();
+    }
+
+    // 图片处理
+    function uploadImg(input, mode) {
+        if (!input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const maxW = mode === 'me' ? 120 : 600;
+                canvas.width = maxW; canvas.height = img.height * (maxW/img.width);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const b64 = canvas.toDataURL('image/jpeg', 0.6);
+                if(mode === 'me') {
+                    document.getElementById('a-img').src = b64; document.getElementById('a-img').classList.remove('hidden');
+                    document.getElementById('a-plus').classList.add('hidden');
+                } else {
+                    tempPostImg = b64; document.getElementById('pre-img').src = b64;
+                    document.getElementById('post-pre').classList.remove('hidden');
+                }
+            };
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+
+    async function publish() {
+        const txt = document.getElementById('post-txt').value.trim();
+        if(!txt && !tempPostImg) return;
+        const isNotice = document.getElementById('chk-notice').checked && me.name === ADMIN_NAME;
+        await sb.from('posts').insert([{ username: me.name, content: txt, avatar: me.avatar, post_img: tempPostImg, user_id: me.name, is_notice: isNotice }]);
+        document.getElementById('post-txt').value = ""; tempPostImg = "";
+        document.getElementById('post-pre').classList.add('hidden'); refreshAll();
+    }
+
+    async function refreshAll() {
+        const { data: posts } = await sb.from('posts').select('*').order('is_notice', {ascending:false}).order('id', {ascending:false});
+        const { data: cmts } = await sb.from('comments').select('*').order('id', {ascending:true});
+        const isAdmin = me.name === ADMIN_NAME;
+
+        const html = (posts || []).map(p => {
+            const pCmts = (cmts || []).filter(c => c.post_id === p.id);
+            return `
+                <div class="card ${p.is_notice?'is-notice':''}">
+                    <div class="u-info">
+                        <img src="${p.avatar || ''}" class="u-head" onclick="openPrivateChat('${p.username}')">
+                        <div style="flex:1"><b>${p.username}</b>${p.username===ADMIN_NAME?'<span class="admin-tag">管理员</span>':''}</div>
+                        ${(p.username===me.name || isAdmin) ? `<div class="del-btn" onclick="delPost(${p.id})">删除</div>` : ''}
+                    </div>
+                    <div style="font-size:15px; margin-bottom:5px;">${p.content}</div>
+                    ${p.post_img ? `<img src="${p.post_img}" style="width:100%; border-radius:10px; margin-top:5px;">` : ''}
+                    <div style="margin-top:12px; font-size:13px; color:var(--primary); display:flex; gap:15px; border-top:1px solid #f0f0f0; padding-top:10px;">
+                        <span onclick="doCmt(${p.id})">💬 评论 (${pCmts.length})</span>
+                        <span onclick="openPrivateChat('${p.username}')">📧 私信联系</span>
+                    </div>
+                    ${pCmts.length > 0 ? `<div class="cmt-area">${pCmts.map(c => `<div class="cmt-item"><span><b>${c.username}:</b> ${c.content}</span>${(c.username===me.name || isAdmin) ? `<span class="del-btn" onclick="delCmt(${c.id})">×</span>` : ''}</div>`).join('')}</div>` : ''}
+                </div>`;
+        }).join('');
+        document.getElementById('feed').innerHTML = html || "暂无动态";
+        document.getElementById('my-feed').innerHTML = (posts || []).filter(p => p.username === me.name).map(p => `<div class="card">${p.content} <span class="del-btn" onclick="delPost(${p.id})">删除</span></div>`).join('') || "还没发过动态";
+        checkNewMessages();
+    }
+
+    async function doCmt(pid) {
+        let val = prompt("发表你的评论...");
+        if(val) { await sb.from('comments').insert([{ post_id: pid, content: val, username: me.name }]); refreshAll(); }
+    }
+
+    async function openPrivateChat(target) {
+        if(target === me.name) return;
+        chatTarget = target;
+        document.getElementById('chat-target-name').innerText = target;
+        document.getElementById('chat-window').classList.remove('hidden');
+        // 将与该用户的未读消息标记为已读
+        await sb.from('messages').update({ is_read: true }).eq('receiver', me.name).eq('sender', target);
+        loadPrivateMsgs();
+    }
+
+    async function loadPrivateMsgs() {
+        const { data } = await sb.from('messages').select('*').or(`and(sender.eq."${me.name}",receiver.eq."${chatTarget}"),and(sender.eq."${chatTarget}",receiver.eq."${me.name}")`).order('id', {ascending:true});
+        if(!data) return;
+        document.getElementById('chat-msgs').innerHTML = data.map(m => `<div class="msg-bubble ${m.sender === me.name ? 'msg-mine' : 'msg-other'}">${m.content}</div>`).join('');
+        const box = document.getElementById('chat-msgs'); box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMsg() {
+        const c = document.getElementById('chat-input').value.trim();
+        if(!c) return;
+        await sb.from('messages').insert([{ sender: me.name, receiver: chatTarget, content: c, is_read: false }]);
+        document.getElementById('chat-input').value = ""; loadPrivateMsgs();
+    }
+
+    async function loadChats() {
+        const { data } = await sb.from('messages').select('*').or(`sender.eq."${me.name}",receiver.eq."${me.name}"`).order('id', {ascending:false});
+        if(!data) return;
+        const users = [...new Set(data.map(m => m.sender === me.name ? m.receiver : m.sender))];
+        document.getElementById('chat-session-list').innerHTML = users.map(u => {
+            const unread = data.filter(m => m.sender === u && m.receiver === me.name && !m.is_read).length;
+            return `<div class="card" onclick="openPrivateChat('${u}')" style="display:flex; align-items:center; justify-content:space-between;">
+                        <b>${u}</b>
+                        ${unread > 0 ? `<span style="background:#ff4757; color:#fff; padding:2px 8px; border-radius:10px; font-size:10px;">${unread}条未读</span>` : '<span style="color:#999; font-size:12px;">对话中</span>'}
+                    </div>`;
+        }).join('') || "暂无消息记录";
+    }
+
+    async function delPost(id) { if(confirm("删除动态？")) { await sb.from('posts').delete().eq('id', id); refreshAll(); } }
+    async function delCmt(id) { if(confirm("删除评论？")) { await sb.from('comments').delete().eq('id', id); refreshAll(); } }
+    function closeChat() { document.getElementById('chat-window').classList.add('hidden'); chatTarget = null; checkNewMessages(); }
+    function logout() { localStorage.clear(); location.reload(); }
+</script>
+</body>
+</html>
