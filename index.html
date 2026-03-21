@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>校园表白墙</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<style>
+body {font-family: Arial;background:#f5f5f5;}
+.header {background:#ff4d6d;color:white;padding:15px;text-align:center;}
+.container {padding:15px;}
+textarea {width:100%;height:80px;border-radius:8px;padding:10px;}
+button {width:100%;margin-top:10px;background:#ff4d6d;color:white;border:none;padding:10px;border-radius:8px;}
+.post {background:white;margin-top:10px;padding:10px;border-radius:10px;}
+.actions {display:flex;gap:10px;margin-top:5px;}
+</style>
+</head>
+
+<body>
+
+<div class="header">校园表白墙</div>
+
+<div class="container">
+<textarea id="content" placeholder="写下你的表白..."></textarea>
+<button onclick="addPost()">发布</button>
+<div id="posts"></div>
+</div>
+
+<script>
+const supabaseClient = supabase.createClient(
+  "https://ljopokentjagtxwdlzma.supabase.co",
+  "sb_publishable_OgGGB2YH9O8rv0Vg3K8jEA_rbxA7ZHk"
+);
+
+async function addPost(){
+  let text = document.getElementById("content").value;
+  if(!text) return alert("不能为空");
+
+  await supabaseClient.from("posts").insert([{content:text}]);
+  document.getElementById("content").value="";
+  loadPosts();
+}
+
+async function likePost(id, likes){
+  await supabaseClient.from("posts")
+    .update({likes: likes+1})
+    .eq("id", id);
+  loadPosts();
+}
+
+async function deletePost(id){
+  await supabaseClient.from("posts")
+    .delete()
+    .eq("id", id);
+  loadPosts();
+}
+
+async function loadPosts(){
+  let { data } = await supabaseClient
+    .from("posts")
+    .select("*")
+    .order("id",{ascending:false});
+
+  let html="";
+  data.forEach(p=>{
+    html+=`
+    <div class="post">
+      <div>${p.content}</div>
+      <div class="actions">
+        <span onclick="likePost(${p.id},${p.likes})">❤️ ${p.likes}</span>
+        <span onclick="deletePost(${p.id})">🗑 删除</span>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById("posts").innerHTML=html;
+}
+
+loadPosts();
+</script>
+
+</body>
+</html>
