@@ -1,0 +1,730 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>灵宝市第三高中表白墙 | 极速增量版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <style>
+        /* ========== 视觉规范 ========== */
+        :root {
+            --primary: #0984e3;
+            --bg-gray: #f4f7f6;
+            --card-radius: 24px;
+            --admin-gold: #f1c40f;
+            --danger-red: #e74c3c;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-gray);
+            color: var(--text-main);
+            padding-bottom: 90px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 75px;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(15px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid rgba(0,0,0,0.06);
+            z-index: 9999;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: #bdc3c7;
+            cursor: pointer;
+            transition: 0.2s;
+            position: relative;
+        }
+        .tab-item.active { color: var(--primary); transform: translateY(-2px); font-weight: 800; }
+        .tab-item i { font-size: 24px; margin-bottom: 4px; }
+        .red-dot-signal {
+            position: absolute;
+            top: 0px;
+            right: 20%;
+            background: var(--danger-red);
+            color: #fff;
+            font-size: 10px;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+            font-weight: bold;
+        }
+        .msg-badge-pulse {
+            background-color: var(--danger-red);
+            color: #fff;
+            font-size: 12px;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(231,76,60,0.6); transform: scale(1);}
+            70% { box-shadow: 0 0 0 10px rgba(231,76,60,0); transform: scale(1.05);}
+            100% { box-shadow: 0 0 0 0 rgba(231,76,60,0); transform: scale(1);}
+        }
+        .container { max-width: 600px; margin: 0 auto; padding: 15px; display: none; }
+        .container.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+        .card {
+            background: #fff;
+            border-radius: var(--card-radius);
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: var(--shadow-soft);
+            transition: all 0.2s;
+        }
+        .pin-notice { background: linear-gradient(135deg, #fff, #fffcf0); border-left: 6px solid var(--admin-gold); }
+        .notice-label { background: var(--admin-gold); color: #fff; font-size: 11px; padding: 4px 12px; border-radius: 8px; font-weight: 900; margin-right: 12px; }
+        .admin-tag { font-size: 10px; border: 1px solid var(--primary); color: var(--primary); padding: 1px 6px; border-radius: 5px; margin-left: 8px; }
+        .admin-del-btn { color: var(--danger-red); font-size: 13px; cursor: pointer; background: rgba(231,76,60,0.05); padding: 6px 12px; border-radius: 20px; margin-left: auto; }
+        .member-row {
+            display: flex; align-items: center; background: #f8f9fa;
+            padding: 12px 15px; border-radius: 18px; margin-bottom: 12px;
+        }
+        .online-dot {
+            width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+            margin-right: 12px; box-shadow: 0 0 0 2px #fff;
+        }
+        .online-green { background-color: #2ecc71; }
+        .online-yellow { background-color: #f1c40f; }
+        .online-red { background-color: #e74c3c; }
+        .ban-btn {
+            background: #2d3436; color: white; border: none; padding: 8px 16px;
+            border-radius: 10px; font-size: 12px; font-weight: bold; cursor: pointer;
+        }
+        .ban-btn.active { background: var(--danger-red); }
+        .wall-input {
+            width: 100%; padding: 15px; border-radius: 18px; border: 2px solid #f1f3f5;
+            background: #f8fafc; font-size: 16px; outline: none;
+            box-sizing: border-box;
+        }
+        .wall-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(9,132,227,0.1); }
+        .btn-confirm { background: var(--primary); color: #fff; border: none; padding: 12px 24px; border-radius: 16px; font-weight: bold; cursor: pointer; }
+        .color-orb { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 3px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
+        .color-orb.selected { transform: scale(1.2); border-color: #2d3436; }
+        .t-blue { color: #0984e3; } .t-green { color: #2ecc71; } .t-red { color: #e74c3c; } .t-gold { color: #f1c40f; } .t-black { color: #2d3436; }
+        .hidden { display: none !important; }
+        .notice-zone {
+            background: #fff0e0; border-radius: 28px; padding: 12px 16px;
+            margin-bottom: 20px; border: 1px solid #ffd8a8;
+        }
+        .notice-item {
+            padding: 12px 0; border-bottom: 1px solid #ffe0b5; display: flex;
+            justify-content: space-between; align-items: center;
+        }
+        .notice-item:last-child { border-bottom: none; }
+        .reply-jump { color: var(--primary); font-weight: bold; font-size: 13px; background: #fff; padding: 4px 12px; border-radius: 20px; cursor: pointer; }
+        .highlight-card { animation: highlightFlash 0.6s ease 2; }
+        @keyframes highlightFlash { 0% { background-color: #fff3cf; } 100% { background-color: #fff; } }
+        .comment-reply-btn { color: var(--primary); cursor: pointer; margin-left: 10px; font-size: 12px; }
+        .like-count, .comment-count { font-weight: normal; }
+    </style>
+</head>
+<body>
+
+<div id="page-login" class="container active" style="margin-top: 80px; display: block;">
+    <div class="card" style="text-align: center; padding: 50px 30px;">
+        <div id="box-avatar" style="width:110px; height:110px; border-radius:50%; background:#f0f3f5; margin:0 auto 30px; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="document.getElementById('file-avatar').click()">
+            <span id="txt-plus" style="font-size:40px; color:#9ca3af;">+</span>
+            <img id="img-avatar-pre" class="hidden" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+        </div>
+        <input type="file" id="file-avatar" hidden accept="image/*" onchange="processMedia(this, 'AVATAR')">
+        <h1 style="margin:0; color:var(--primary);">灵宝市第三高中</h1>
+        <p style="color:var(--text-sub); font-weight: bold;">校内专属表白墙系统</p>
+        <div style="margin-top:40px;">
+            <input id="in-nickname" class="wall-input" maxlength="15" placeholder="你的校友名称">
+            <input id="in-admin-pw" class="wall-input" type="password" style="margin-top:15px;" placeholder="管理员专属密令 (可选)">
+            <button class="btn-confirm" style="width:100%; height:55px; margin-top:25px;" onclick="handleLogin()">进入三高墙</button>
+        </div>
+    </div>
+</div>
+
+<div id="app-body" class="hidden">
+    <div id="view-wall" class="container active">
+        <div class="card">
+            <div style="display:flex;">
+                <img id="my-wall-head" style="width:45px; height:45px; border-radius:50%; margin-right:15px;">
+                <textarea id="post-text" class="wall-input" style="border:none; background:transparent; padding:0; height:100px; resize:none; font-size:18px;" placeholder="此刻，有什么悄悄话想告诉三高校友？"></textarea>
+            </div>
+            <div id="post-img-box" class="hidden" style="margin:15px 0;">
+                <div style="position:relative; display:inline-block;">
+                    <img id="img-post-pre" style="width:140px; border-radius:15px;">
+                    <span style="position:absolute; top:-8px; right:-8px; background:#2d3436; color:#fff; width:22px; border-radius:50%; text-align:center; cursor:pointer;" onclick="clearMedia()">×</span>
+                </div>
+            </div>
+            <div id="admin-post-tools" class="admin-panel hidden">
+                <div class="color-group" style="display:flex; gap:12px; margin:10px 0;">
+                    <span style="font-size:13px;">管理员色系：</span>
+                    <div class="color-orb selected" style="background:#0984e3" onclick="selectColor('blue', this)"></div>
+                    <div class="color-orb" style="background:#2ecc71" onclick="selectColor('green', this)"></div>
+                    <div class="color-orb" style="background:#e74c3c" onclick="selectColor('red', this)"></div>
+                    <div class="color-orb" style="background:#f1c40f" onclick="selectColor('gold', this)"></div>
+                    <div class="color-orb" style="background:#2d3436" onclick="selectColor('black', this)"></div>
+                </div>
+                <div><input type="checkbox" id="check-pin"> <label for="check-pin" style="font-weight:bold; color:var(--admin-gold);">设为红头置顶公告</label></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:15px;">
+                <div style="cursor:pointer;" onclick="document.getElementById('file-post-img').click()">🖼️ 配图</div>
+                <input type="file" id="file-post-img" hidden accept="image/*" onchange="processMedia(this, 'POST')">
+                <button class="btn-confirm" onclick="submitToWall()">发布动态</button>
+            </div>
+        </div>
+        <div id="wall-stream"></div>
+    </div>
+
+    <div id="view-messages" class="container">
+        <div id="reply-notice-zone" class="notice-zone">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>📢 评论通知专区</strong>
+                <span id="notice-badge" style="background:#e74c3c; color:white; border-radius:30px; padding:2px 10px; font-size:12px;">0</span>
+            </div>
+            <div id="notice-list-area" style="max-height:200px; overflow-y:auto; margin-top:8px;"></div>
+            <div id="notice-empty" style="font-size:13px; color:gray; text-align:center; padding:8px;">暂无新评论回复</div>
+        </div>
+        <h2 style="padding:0 10px;">💌 三高悄悄话</h2>
+        <div id="session-list"></div>
+    </div>
+
+    <div id="view-profile" class="container">
+        <div class="card" style="text-align:center;">
+            <img id="profile-head" style="width:120px; height:120px; border-radius:50%;">
+            <h2 id="profile-name"></h2>
+            <div id="profile-badge"></div>
+            <div style="margin-top:30px;">
+                <button id="btn-admin-mgr" class="btn-confirm hidden" style="background:#2d3436;" onclick="openAdminManager()">⚙️ 管理员控制台</button>
+                <button class="btn-confirm" style="background:var(--text-sub); margin-top:15px;" onclick="userLogout()">退出系统</button>
+            </div>
+        </div>
+        <div id="admin-mgr-box" class="card hidden">
+            <h3>全校成员名单</h3>
+            <div id="all-user-list"></div>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchView('wall')"><i>🏛️</i><span>广场</span></div>
+        <div class="tab-item" onclick="switchView('messages')"><i>📧</i><span>私信</span><div id="badge-global" class="red-dot-signal hidden">0</div></div>
+        <div class="tab-item" onclick="switchView('profile')"><i>👤</i><span>我的</span></div>
+    </div>
+</div>
+
+<div id="msg-overlay" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#f4f7f6; z-index:10001; display:flex; flex-direction:column;">
+    <div style="background:#fff; padding:20px; display:flex; align-items:center;">
+        <div onclick="closeMsgOverlay()" style="font-size:22px; cursor:pointer;">✕</div>
+        <b id="msg-target-name" style="flex:1; text-align:center;">对话中</b>
+    </div>
+    <div id="msg-stream" style="flex:1; overflow-y:auto; padding:20px;"></div>
+    <div style="padding:15px; display:flex; gap:10px;">
+        <input id="in-msg" class="wall-input" style="margin:0; border-radius:30px;" placeholder="说点什么...">
+        <button class="btn-confirm" onclick="sendPrivateMsg()">发送</button>
+    </div>
+</div>
+
+<script>
+    // 修正 Supabase 客户端初始化（关键修复）
+    const supabase = supabase.createClient(
+        "https://ljopokentjagtxwdlzma.supabase.co",
+        "sb_publishable_OgGGB2YH9O8rv0Vg3K8jEA_rbxA7ZHk"
+    );
+    
+    let me = null;
+    let posts = [];          // 帖子数组
+    let comments = [];       // 评论数组
+    let curColor = "blue";
+    let curPartner = null;
+    let pendingImgB64 = "";
+    const ADMIN_USER = "HeAI（作者）";
+    const ADMIN_PASS = "hzc123456";
+
+    // DOM 引用
+    const wallStream = document.getElementById('wall-stream');
+
+    // 在线状态心跳
+    setInterval(async () => {
+        if (me) await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('username', me.name);
+    }, 25000);
+
+    function getOnlineClass(lastSeen) {
+        if (!lastSeen) return 'online-red';
+        const diff = (Date.now() - new Date(lastSeen).getTime()) / 1000 / 60;
+        if (diff < 2) return 'online-green';
+        if (diff <= 5) return 'online-yellow';
+        return 'online-red';
+    }
+
+    // 登录函数（增加错误处理）
+    async function handleLogin() {
+        try {
+            const name = document.getElementById('in-nickname').value.trim();
+            const pass = document.getElementById('in-admin-pw').value.trim();
+            if (!name) {
+                alert("请输入昵称");
+                return;
+            }
+            let isAdmin = (name === ADMIN_USER && pass === ADMIN_PASS);
+            if (name === ADMIN_USER && pass !== ADMIN_PASS) {
+                alert("管理员密令错误");
+                return;
+            }
+
+            // 检查是否被封禁
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('is_banned')
+                .eq('username', name)
+                .single();
+                
+            if (profileError && profileError.code !== 'PGRST116') {
+                console.error("查询用户出错:", profileError);
+                alert("网络异常，请稍后重试");
+                return;
+            }
+            if (profile?.is_banned) {
+                alert("该校友已被管理员封禁，无法进入！");
+                return;
+            }
+
+            const avatarSrc = document.getElementById('img-avatar-pre').src;
+            const finalAvatar = (avatarSrc && avatarSrc !== window.location.href) 
+                ? avatarSrc 
+                : `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}`;
+                
+            me = { name, avatar: finalAvatar, isAdmin };
+            
+            // 保存到数据库
+            await supabase.from('profiles').upsert({ 
+                username: name, 
+                avatar: finalAvatar, 
+                last_login: new Date(), 
+                last_seen: new Date().toISOString() 
+            });
+            
+            localStorage.setItem('SANGO_USER_V27', JSON.stringify(me));
+
+            // 切换界面
+            document.getElementById('page-login').style.display = 'none';
+            document.getElementById('app-body').classList.remove('hidden');
+            document.getElementById('profile-name').innerText = me.name;
+            document.getElementById('my-wall-head').src = me.avatar;
+            document.getElementById('profile-head').src = me.avatar;
+            
+            if (me.isAdmin) {
+                document.getElementById('admin-post-tools').classList.remove('hidden');
+                document.getElementById('btn-admin-mgr').classList.remove('hidden');
+                document.getElementById('profile-badge').innerHTML = '<span class="notice-label">官方管理员</span>';
+            }
+            
+            await loadInitialData();
+            renderAllPosts();
+            renderSessions();
+            updateGlobalBadge();
+            startRealtime();
+            renderNoticeZone();
+        } catch (err) {
+            console.error("登录失败:", err);
+            alert("登录失败：" + err.message);
+        }
+    }
+
+    async function loadInitialData() {
+        const { data: postsData } = await supabase.from('posts').select('*').order('is_notice', { ascending: false }).order('id', { ascending: false });
+        const { data: commentsData } = await supabase.from('comments').select('*').order('id', { ascending: true });
+        posts = postsData || [];
+        comments = commentsData || [];
+    }
+
+    // 渲染单个帖子卡片
+    function renderPostCard(post) {
+        const postComments = comments.filter(c => c.post_id === post.id);
+        const likes = JSON.parse(localStorage.getItem('SANGO_LIKES') || "[]");
+        const liked = likes.includes(post.id);
+        let bodyText = post.content, cClass = "";
+        if (post.username === ADMIN_USER && post.content && post.content.startsWith('[color:')) {
+            const match = post.content.match(/\[color:(\w+)\](.*)/s);
+            if (match) { cClass = "t-" + match[1]; bodyText = match[2]; }
+        }
+        return `
+            <div class="card ${post.is_notice ? 'pin-notice' : ''}" data-post-id="${post.id}" id="post-${post.id}">
+                <div style="display:flex; align-items:center; margin-bottom:12px;">
+                    ${post.is_notice ? '<span class="notice-label">三高置顶</span>' : ''}
+                    <img src="${escapeHtml(post.avatar) || `https://api.dicebear.com/7.x/identicon/svg?seed=${post.username}`}" style="width:42px; height:42px; border-radius:50%; margin-right:12px;">
+                    <div style="flex:1"><b class="${cClass}">${escapeHtml(post.username)}</b>${post.username === ADMIN_USER ? '<span class="admin-tag">管理员</span>' : ''}</div>
+                    ${(post.username === me.name || me.isAdmin) ? `<span class="admin-del-btn" onclick="killPostById(${post.id})">删除动态</span>` : ''}
+                </div>
+                <div style="font-size:17px;" class="${cClass}">${escapeHtml(bodyText).replace(/\n/g, '<br>')}</div>
+                ${post.post_img ? `<img src="${post.post_img}" style="width:100%; border-radius:15px; margin-top:12px;">` : ''}
+                <div style="display:flex; gap:18px; margin-top:18px;">
+                    <span onclick="doLikeIncremental(${post.id}, ${post.likes || 0})" style="cursor:pointer; ${liked ? 'color:var(--danger-red);' : ''}">❤️ <span class="like-count-${post.id}">${post.likes || 0}</span></span>
+                    <span onclick="focusCommentInput(${post.id})" style="cursor:pointer;">💬 <span class="comment-count-${post.id}">${postComments.length}</span></span>
+                    <span onclick="openChat('${post.username}')" style="cursor:pointer; color:var(--primary);">📧 悄悄话</span>
+                    ${me.isAdmin ? `<span style="margin-left:auto; color:var(--admin-gold); cursor:pointer;" onclick="pinPostIncremental(${post.id}, ${post.is_notice})">${post.is_notice ? '取消置顶' : '📌置顶'}</span>` : ''}
+                </div>
+                <div id="comment-section-${post.id}" style="margin-top:12px; border-top:1px solid #f0f0f0; padding-top:12px;">
+                    ${postComments.map(c => `
+                        <div id="comment-${c.id}" style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:14px;">
+                            <span><b>${escapeHtml(c.username)}</b>: ${escapeHtml(c.content)}</span>
+                            <span style="display:flex; gap:8px;">
+                                <span class="comment-reply-btn" onclick="replyToComment('${c.username}', ${post.id})">回复</span>
+                                ${(c.username === me.name || me.isAdmin) ? `<span style="color:var(--danger-red); cursor:pointer;" onclick="killCommentById(${c.id}, ${post.id})">×</span>` : ''}
+                            </span>
+                        </div>
+                    `).join('')}
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <input id="in-cmt-${post.id}" class="wall-input" style="padding:8px; height:38px;" placeholder="写评论...">
+                        <button class="btn-confirm" style="padding:0 16px;" onclick="addCommentIncremental(${post.id})">发送</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderAllPosts() {
+        if (!wallStream) return;
+        let html = '';
+        for (let p of posts) {
+            html += renderPostCard(p);
+        }
+        wallStream.innerHTML = html || '<div style="text-align:center; padding:80px;">墙上空空如也...</div>';
+    }
+
+    function updatePostCard(postId) {
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+        const cardHtml = renderPostCard(post);
+        const existingCard = document.getElementById(`post-${postId}`);
+        if (existingCard) {
+            existingCard.outerHTML = cardHtml;
+        } else {
+            renderAllPosts();
+        }
+    }
+
+    function prependPostCard(post) {
+        const newCard = renderPostCard(post);
+        wallStream.insertAdjacentHTML('afterbegin', newCard);
+    }
+
+    function removePostCard(postId) {
+        const card = document.getElementById(`post-${postId}`);
+        if (card) card.remove();
+    }
+
+    function updateLikeDisplay(postId, newLikes) {
+        const likeSpan = document.querySelector(`.like-count-${postId}`);
+        if (likeSpan) likeSpan.innerText = newLikes;
+    }
+
+    function updateCommentCount(postId) {
+        const count = comments.filter(c => c.post_id === postId).length;
+        const countSpan = document.querySelector(`.comment-count-${postId}`);
+        if (countSpan) countSpan.innerText = count;
+    }
+
+    function addCommentToDOM(postId, comment) {
+        const commentSection = document.getElementById(`comment-section-${postId}`);
+        if (!commentSection) return;
+        const newCommentHtml = `
+            <div id="comment-${comment.id}" style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:14px;">
+                <span><b>${escapeHtml(comment.username)}</b>: ${escapeHtml(comment.content)}</span>
+                <span style="display:flex; gap:8px;">
+                    <span class="comment-reply-btn" onclick="replyToComment('${comment.username}', ${postId})">回复</span>
+                    ${(comment.username === me.name || me.isAdmin) ? `<span style="color:var(--danger-red); cursor:pointer;" onclick="killCommentById(${comment.id}, ${postId})">×</span>` : ''}
+                </span>
+            </div>
+        `;
+        const commentList = commentSection;
+        const inputDiv = commentSection.querySelector('div:last-child');
+        if (inputDiv) {
+            inputDiv.insertAdjacentHTML('beforebegin', newCommentHtml);
+        } else {
+            commentSection.insertAdjacentHTML('beforeend', newCommentHtml);
+        }
+        updateCommentCount(postId);
+    }
+
+    function removeCommentFromDOM(commentId) {
+        const commentDiv = document.getElementById(`comment-${commentId}`);
+        if (commentDiv) commentDiv.remove();
+        const postId = comments.find(c => c.id === commentId)?.post_id;
+        if (postId) updateCommentCount(postId);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // 发帖
+    async function submitToWall() {
+        const text = document.getElementById('post-text').value.trim();
+        const pinned = document.getElementById('check-pin')?.checked && me.isAdmin;
+        if (!text && !pendingImgB64) return;
+        const body = me.isAdmin ? `[color:${curColor}]${text}` : text;
+        const { data: newPost, error } = await supabase.from('posts').insert([{
+            username: me.name, content: body, avatar: me.avatar,
+            post_img: pendingImgB64, is_notice: pinned, likes: 0
+        }]).select().single();
+        if (error) return alert("发布失败");
+        posts.unshift(newPost);
+        prependPostCard(newPost);
+        document.getElementById('post-text').value = "";
+        clearMedia();
+        renderNoticeZone();
+    }
+
+    async function killPostById(postId) {
+        if (!confirm("删除动态?")) return;
+        await supabase.from('posts').delete().eq('id', postId);
+        await supabase.from('comments').delete().eq('post_id', postId);
+        posts = posts.filter(p => p.id !== postId);
+        comments = comments.filter(c => c.post_id !== postId);
+        removePostCard(postId);
+        renderNoticeZone();
+    }
+
+    async function killCommentById(commentId, postId) {
+        await supabase.from('comments').delete().eq('id', commentId);
+        comments = comments.filter(c => c.id !== commentId);
+        removeCommentFromDOM(commentId);
+        renderNoticeZone();
+    }
+
+    async function addCommentIncremental(postId) {
+        const input = document.getElementById(`in-cmt-${postId}`);
+        const val = input.value.trim();
+        if (!val) return;
+        const post = posts.find(p => p.id === postId);
+        const { data: newCmt } = await supabase.from('comments').insert([{ post_id: postId, username: me.name, content: val }]).select().single();
+        if (newCmt) {
+            comments.push(newCmt);
+            addCommentToDOM(postId, newCmt);
+            if (post && post.username !== me.name) {
+                addNotification(post.username, me.name, val, postId);
+            }
+        }
+        input.value = "";
+        renderNoticeZone();
+    }
+
+    async function doLikeIncremental(postId, currentLikes) {
+        let likesArr = JSON.parse(localStorage.getItem('SANGO_LIKES') || "[]");
+        const idx = likesArr.indexOf(postId);
+        let newCount = currentLikes;
+        if (idx === -1) { likesArr.push(postId); newCount = currentLikes + 1; }
+        else { likesArr.splice(idx, 1); newCount = Math.max(0, currentLikes - 1); }
+        localStorage.setItem('SANGO_LIKES', JSON.stringify(likesArr));
+        await supabase.from('posts').update({ likes: newCount }).eq('id', postId);
+        const post = posts.find(p => p.id === postId);
+        if (post) post.likes = newCount;
+        updateLikeDisplay(postId, newCount);
+    }
+
+    async function pinPostIncremental(postId, currentStatus) {
+        await supabase.from('posts').update({ is_notice: !currentStatus }).eq('id', postId);
+        const post = posts.find(p => p.id === postId);
+        if (post) post.is_notice = !currentStatus;
+        updatePostCard(postId);
+    }
+
+    function focusCommentInput(postId) { document.getElementById(`in-cmt-${postId}`)?.focus(); }
+    function replyToComment(username, postId) { const inp = document.getElementById(`in-cmt-${postId}`); if (inp) inp.value = `@${username} `; inp?.focus(); }
+
+    // 评论通知 (localStorage)
+    function addNotification(targetUser, fromUser, content, postId) {
+        if (targetUser === fromUser) return;
+        const notif = { id: Date.now() + Math.random(), targetUser, fromUser, content: content.slice(0, 40), postId, timestamp: new Date().toISOString(), read: false };
+        let stored = JSON.parse(localStorage.getItem('SANGO_NOTIFS') || '[]');
+        stored.unshift(notif);
+        localStorage.setItem('SANGO_NOTIFS', JSON.stringify(stored));
+        renderNoticeZone();
+        if (me.name === targetUser) updateGlobalBadge();
+    }
+
+    function renderNoticeZone() {
+        if (!me) return;
+        const allNotifs = JSON.parse(localStorage.getItem('SANGO_NOTIFS') || '[]');
+        const myNotifs = allNotifs.filter(n => n.targetUser === me.name);
+        const unreadCount = myNotifs.filter(n => !n.read).length;
+        document.getElementById('notice-badge').innerText = unreadCount;
+        const container = document.getElementById('notice-list-area');
+        const emptyDiv = document.getElementById('notice-empty');
+        if (myNotifs.length === 0) {
+            emptyDiv.classList.remove('hidden');
+            container.innerHTML = '';
+            return;
+        }
+        emptyDiv.classList.add('hidden');
+        container.innerHTML = myNotifs.map(n => `
+            <div class="notice-item" data-notif-id="${n.id}">
+                <div style="flex:1;"><b>${escapeHtml(n.fromUser)}</b> 评论了你的帖子: “${escapeHtml(n.content)}”</div>
+                <div class="reply-jump" onclick="jumpToPostAndReply(${n.postId}, '${n.fromUser}')">回复</div>
+            </div>
+        `).join('');
+    }
+
+    async function jumpToPostAndReply(postId, replyToUser) {
+        let notifs = JSON.parse(localStorage.getItem('SANGO_NOTIFS') || '[]');
+        notifs = notifs.map(n => { if (n.targetUser === me.name && n.postId === postId) n.read = true; return n; });
+        localStorage.setItem('SANGO_NOTIFS', JSON.stringify(notifs));
+        renderNoticeZone();
+        switchView('wall');
+        setTimeout(() => {
+            const targetCard = document.getElementById(`post-${postId}`);
+            if (targetCard) {
+                targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetCard.classList.add('highlight-card');
+                setTimeout(() => targetCard.classList.remove('highlight-card'), 800);
+                const cmtInput = document.getElementById(`in-cmt-${postId}`);
+                if (cmtInput) { cmtInput.value = `@${replyToUser} `; cmtInput.focus(); }
+            } else { alert("帖子未加载，请刷新"); }
+        }, 200);
+    }
+
+    // 私信相关
+    async function renderSessions() {
+        const { data: msgs } = await supabase.from('messages').select('*').or(`sender.eq."${me.name}",receiver.eq."${me.name}"`).order('id', { ascending: false });
+        if (!msgs) return;
+        const { data: unreads } = await supabase.from('messages').select('sender').eq('receiver', me.name).eq('is_read', false);
+        const partners = [...new Set(msgs.map(m => m.sender === me.name ? m.receiver : m.sender))];
+        document.getElementById('session-list').innerHTML = partners.map(user => {
+            const last = msgs.find(m => m.sender === user || m.receiver === user);
+            const count = (unreads || []).filter(u => u.sender === user).length;
+            return `<div class="card" onclick="openChat('${user}')" style="display:flex; align-items:center; cursor:pointer;">
+                <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${user}" style="width:50px; border-radius:50%; margin-right:15px;">
+                <div style="flex:1;"><b>${escapeHtml(user)}</b>${count > 0 ? `<div class="msg-badge-pulse" style="float:right;">${count}</div>` : ''}<div style="font-size:13px;">${escapeHtml(last.content)}</div></div>
+            </div>`;
+        }).join('');
+    }
+
+    async function openChat(partner) { if (partner === me.name) return; curPartner = partner; document.getElementById('msg-target-name').innerText = `与 ${partner} 对话`; document.getElementById('msg-overlay').classList.remove('hidden'); await supabase.from('messages').update({ is_read: true }).eq('receiver', me.name).eq('sender', partner); updateGlobalBadge(); loadMsgHistory(); }
+    async function loadMsgHistory() { const { data } = await supabase.from('messages').select('*').or(`and(sender.eq."${me.name}",receiver.eq."${curPartner}"),and(sender.eq."${curPartner}",receiver.eq."${me.name}")`).order('id'); document.getElementById('msg-stream').innerHTML = (data || []).map(m => `<div style="max-width:80%; padding:12px; border-radius:18px; margin:5px 0; align-self:${m.sender === me.name ? 'flex-end' : 'flex-start'}; background:${m.sender === me.name ? 'var(--primary)' : '#fff'};">${escapeHtml(m.content)}</div>`).join(''); }
+    async function sendPrivateMsg() { const val = document.getElementById('in-msg').value.trim(); if (val && curPartner) { await supabase.from('messages').insert([{ sender: me.name, receiver: curPartner, content: val, is_read: false }]); document.getElementById('in-msg').value = ""; loadMsgHistory(); updateGlobalBadge(); } }
+    function closeMsgOverlay() { document.getElementById('msg-overlay').classList.add('hidden'); curPartner = null; }
+
+    // 管理员控制台
+    async function openAdminManager() {
+        const box = document.getElementById('admin-mgr-box');
+        box.classList.toggle('hidden');
+        if (!box.classList.contains('hidden')) {
+            const { data: users } = await supabase.from('profiles').select('*').order('username');
+            document.getElementById('all-user-list').innerHTML = (users || []).map(u => {
+                const onlineClass = getOnlineClass(u.last_seen);
+                return `<div class="member-row"><span class="online-dot ${onlineClass}"></span><img src="${u.avatar}" style="width:35px; border-radius:50%; margin-right:12px;"><b style="flex:1">${escapeHtml(u.username)}</b><button class="ban-btn ${u.is_banned ? 'active' : ''}" onclick="toggleBan('${u.username}', ${u.is_banned})">${u.is_banned ? '解除禁言' : '执行禁言'}</button></div>`;
+            }).join('');
+        }
+    }
+    async function toggleBan(username, cur) { if (username === ADMIN_USER) return; await supabase.from('profiles').update({ is_banned: !cur }).eq('username', username); openAdminManager(); }
+
+    async function updateGlobalBadge() { const { data } = await supabase.from('messages').select('id').eq('receiver', me.name).eq('is_read', false); const badge = document.getElementById('badge-global'); if (data?.length) { badge.innerText = data.length; badge.classList.remove('hidden'); } else badge.classList.add('hidden'); }
+
+    function switchView(viewId) {
+        document.querySelectorAll('.container').forEach(c => { c.classList.remove('active'); c.style.display = 'none'; });
+        document.getElementById(`view-${viewId}`).classList.add('active');
+        document.getElementById(`view-${viewId}`).style.display = 'block';
+        if (viewId === 'messages') { renderSessions(); renderNoticeZone(); }
+        if (viewId === 'wall') { /* 无需重绘，已有内容 */ }
+    }
+
+    // 实时监听
+    function startRealtime() {
+        supabase.channel('public-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+                const newPost = payload.new;
+                if (posts.find(p => p.id === newPost.id)) return;
+                posts.unshift(newPost);
+                prependPostCard(newPost);
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
+                const oldId = payload.old.id;
+                posts = posts.filter(p => p.id !== oldId);
+                removePostCard(oldId);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, (payload) => {
+                const updated = payload.new;
+                const idx = posts.findIndex(p => p.id === updated.id);
+                if (idx !== -1) posts[idx] = updated;
+                updatePostCard(updated.id);
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
+                const newComment = payload.new;
+                comments.push(newComment);
+                addCommentToDOM(newComment.post_id, newComment);
+                const post = posts.find(p => p.id === newComment.post_id);
+                if (post && post.username !== me.name && newComment.username !== me.name) {
+                    addNotification(post.username, newComment.username, newComment.content, post.id);
+                }
+                renderNoticeZone();
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload) => {
+                const oldId = payload.old.id;
+                comments = comments.filter(c => c.id !== oldId);
+                removeCommentFromDOM(oldId);
+                renderNoticeZone();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+                updateGlobalBadge();
+                if (document.getElementById('view-messages').classList.contains('active')) renderSessions();
+            })
+            .subscribe();
+    }
+
+    function processMedia(input, mode) { if (!input.files[0]) return; const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.src = e.target.result; img.onload = () => { const canvas = document.createElement('canvas'); const max = mode === 'AVATAR' ? 150 : 800; canvas.width = max; canvas.height = img.height * (max / img.width); canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height); const b64 = canvas.toDataURL('image/jpeg', 0.8); if (mode === 'AVATAR') { document.getElementById('img-avatar-pre').src = b64; document.getElementById('img-avatar-pre').classList.remove('hidden'); document.getElementById('txt-plus').classList.add('hidden'); } else { pendingImgB64 = b64; document.getElementById('img-post-pre').src = b64; document.getElementById('post-img-box').classList.remove('hidden'); } }; }; reader.readAsDataURL(input.files[0]); }
+    function selectColor(c, el) { curColor = c; document.querySelectorAll('.color-orb').forEach(o => o.classList.remove('selected')); el.classList.add('selected'); }
+    function clearMedia() { pendingImgB64 = ""; document.getElementById('post-img-box').classList.add('hidden'); }
+    function userLogout() { if (confirm("退出")) { localStorage.clear(); location.reload(); } }
+
+    // 暴露全局函数
+    window.replyToComment = replyToComment;
+    window.jumpToPostAndReply = jumpToPostAndReply;
+    window.killPostById = killPostById;
+    window.killCommentById = killCommentById;
+    window.doLikeIncremental = doLikeIncremental;
+    window.pinPostIncremental = pinPostIncremental;
+    window.addCommentIncremental = addCommentIncremental;
+    window.selectColor = selectColor;
+    window.openChat = openChat;
+    window.sendPrivateMsg = sendPrivateMsg;
+    window.closeMsgOverlay = closeMsgOverlay;
+    window.switchView = switchView;
+    window.openAdminManager = openAdminManager;
+    window.toggleBan = toggleBan;
+    window.handleLogin = handleLogin;
+    window.processMedia = processMedia;
+    window.submitToWall = submitToWall;
+    window.clearMedia = clearMedia;
+    window.userLogout = userLogout;
+    window.focusCommentInput = focusCommentInput;
+</script>
+</body>
+</html>
