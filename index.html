@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>灵宝市第三高中表白墙 | 管理员旗舰版</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+    <style>
+        /* ================================================================
+           1. 全局视觉规范 (UI 优化版 - 保持高质感)
+           ================================================================
+        */
+        :root {
+            --primary: #0984e3;           /* 灵宝三高蓝 */
+            --bg-gray: #f4f7f6;           /* 底色 */
+            --card-radius: 24px;          /* 标志性圆角 */
+            --admin-gold: #f1c40f;        /* 管理员金 */
+            --danger-red: #e74c3c;        /* 警示红 */
+            --success-green: #2ecc71;     /* 成功绿 */
+            --text-main: #2d3436;         /* 主文字 */
+            --text-sub: #636e72;          /* 副文字 */
+            --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-gray);
+            color: var(--text-main);
+            padding-bottom: 90px; /* 为底部导航预留 */
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+        }
+
+        /* ================================================================
+           2. 核心导航栏 (修复点击失效的关键)
+           ================================================================
+        */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 75px;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(15px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid rgba(0,0,0,0.06);
+            z-index: 9999;
+            padding-bottom: env(safe-area-inset-bottom);
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.04);
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: #bdc3c7;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-item.active {
+            color: var(--primary);
+            font-weight: 800;
+            transform: translateY(-3px);
+        }
+
+        .tab-item i {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        /* ================================================================
+           3. 信号气泡 (在你画圈的位置 - 增强版)
+           ================================================================
+        */
+        .red-dot-signal {
+            position: absolute;
+            top: 2px;
+            right: 22%;
+            background: var(--danger-red);
+            color: #fff;
+            font-size: 10px;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(231, 76, 60, 0.3);
+        }
+
+        /* 列表里的呼吸感红点 */
+        .msg-badge-pulse {
+            background-color: var(--danger-red);
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #fff;
+            animation: pulse-ring 2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.6); transform: scale(1); }
+            70% { box-shadow: 0 0 0 12px rgba(231, 76, 60, 0); transform: scale(1.05); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); transform: scale(1); }
+        }
+
+        /* ================================================================
+           4. 布局与容器
+           ================================================================
+        */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 15px;
+            display: none; /* 默认隐藏，由 JS 控制显示 */
+        }
+
+        .container.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card {
+            background: #fff;
+            border-radius: var(--card-radius);
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: var(--shadow-soft);
+            border: 1px solid rgba(0,0,0,0.01);
+            position: relative;
+        }
+
+        /* 管理员置顶样式 */
+        .pin-notice {
+            background: linear-gradient(135deg, #ffffff 0%, #fffcf0 100%);
+            border: 2.5px solid var(--admin-gold);
+        }
+
+        .notice-label {
+            background: var(--admin-gold);
+            color: #fff;
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-weight: 900;
+            margin-right: 12px;
+        }
+
+        /* ================================================================
+           5. 管理员 UI 组件
+           ================================================================
+        */
+        .admin-tag {
+            font-size: 10px;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+            padding: 1px 6px;
+            border-radius: 5px;
+            margin-left: 8px;
+            font-weight: bold;
+        }
+
+        .admin-del-btn {
+            color: var(--danger-red);
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 6px 14px;
+            border-radius: 12px;
+            background: rgba(231, 76, 60, 0.06);
+            margin-left: auto;
+        }
+
+        .admin-panel {
+            border-top: 2px dashed #f0f0f0;
+            margin-top: 20px;
+            padding-top: 20px;
+        }
+
+        .member-row {
+            display: flex;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 18px;
+            margin-bottom: 12px;
+        }
+
+        .ban-btn {
+            background: #2d3436;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .ban-btn.active { background: var(--danger-red); }
+
+        /* ================================================================
+           6. 输入与交互
+           ================================================================
+        */
+        .wall-input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 18px;
+            border: 2px solid #f1f3f5;
+            background: #f8fafc;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .wall-input:focus {
+            border-color: var(--primary);
+            background: #fff;
+            box-shadow: 0 0 0 5px rgba(9, 132, 227, 0.1);
+        }
+
+        .btn-confirm {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* 管理员配色球 */
+        .color-group { display: flex; gap: 12px; margin: 15px 0; align-items: center; }
+        .color-orb { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: 0.2s; }
+        .color-orb.selected { transform: scale(1.3); border-color: #2d3436; }
+
+        .t-blue { color: #0984e3 !important; }
+        .t-green { color: #2ecc71 !important; }
+        .t-red { color: #e74c3c !important; }
+        .t-gold { color: #f1c40f !important; }
+        .t-black { color: #2d3436 !important; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="page-login" class="container active" style="margin-top: 80px; display: block;">
+    <div class="card" style="text-align: center; padding: 50px 30px;">
+        <div id="box-avatar" style="width: 110px; height: 110px; border-radius: 50%; background: #f0f3f5; margin: 0 auto 30px; border: 3px dashed #d1d5db; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer;" onclick="document.getElementById('file-avatar').click()">
+            <span id="txt-plus" style="font-size: 40px; color: #9ca3af;">+</span>
+            <img id="img-avatar-pre" class="hidden" style="width:100%; height:100%; object-fit:cover;">
+        </div>
+        <input type="file" id="file-avatar" hidden accept="image/*" onchange="processMedia(this, 'AVATAR')">
+
+        <h1 style="margin:0; font-size:26px; color:var(--primary);">灵宝市第三高中</h1>
+        <p style="color:var(--text-sub); font-size:14px; margin-top:5px; font-weight: bold;">校内专属表白墙系统</p>
+
+        <div style="margin-top:40px;">
+            <input id="in-nickname" class="wall-input" maxlength="15" placeholder="你的校友名称">
+            <input id="in-admin-pw" class="wall-input" type="password" style="margin-top:15px;" placeholder="管理员专属密令 (可选)">
+            
+            <button class="btn-confirm" style="width:100%; height:55px; margin-top:25px; font-size:17px;" onclick="handleLogin()">进入三高墙</button>
+        </div>
+        <p style="font-size:11px; color:#cbd5e0; margin-top:20px;">文明发言，共创和谐灵宝三高</p>
+    </div>
+</div>
+
+<div id="app-body" class="hidden">
+    
+    <div id="view-wall" class="container active">
+        <div class="card">
+            <div style="display:flex; align-items:flex-start;">
+                <img id="my-wall-head" style="width:45px; height:45px; border-radius:50%; margin-right:15px; background:#eee;">
+                <textarea id="post-text" class="wall-input" style="border:none; background:transparent; padding:0; height:100px; resize:none; font-size:18px;" placeholder="此刻，有什么悄悄话想告诉三高校友？"></textarea>
+            </div>
+
+            <div id="post-img-box" class="hidden" style="margin:15px 0;">
+                <div style="position:relative; display:inline-block;">
+                    <img id="img-post-pre" style="width:140px; border-radius:15px; box-shadow:0 8px 15px rgba(0,0,0,0.1);">
+                    <span style="position:absolute; top:-8px; right:-8px; background:#2d3436; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="clearMedia()">×</span>
+                </div>
+            </div>
+
+            <div id="admin-post-tools" class="admin-panel hidden">
+                <div class="color-group">
+                    <span style="font-size:13px; font-weight:bold; color:var(--text-sub);">管理员色系：</span>
+                    <div class="color-orb selected" style="background:#0984e3" onclick="selectColor('blue', this)"></div>
+                    <div class="color-orb" style="background:#2ecc71" onclick="selectColor('green', this)"></div>
+                    <div class="color-orb" style="background:#e74c3c" onclick="selectColor('red', this)"></div>
+                    <div class="color-orb" style="background:#f1c40f" onclick="selectColor('gold', this)"></div>
+                    <div class="color-orb" style="background:#2d3436" onclick="selectColor('black', this)"></div>
+                </div>
+                <div style="display:flex; align-items:center; margin-bottom:15px;">
+                    <input type="checkbox" id="check-pin" style="width:18px; height:18px; margin-right:10px;">
+                    <label for="check-pin" style="font-weight:bold; color:var(--admin-gold);">设为红头置顶公告</label>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f8f9fa; padding-top:15px;">
+                <div style="display:flex; align-items:center; cursor:pointer;" onclick="document.getElementById('file-post-img').click()">
+                    <span style="font-size:26px;">🖼️</span>
+                    <span style="margin-left:8px; font-weight:600; color:var(--text-sub); font-size:14px;">发照片</span>
+                </div>
+                <input type="file" id="file-post-img" hidden accept="image/*" onchange="processMedia(this, 'POST')">
+                <button class="btn-confirm" onclick="submitToWall()">发布动态</button>
+            </div>
+        </div>
+
+        <div id="wall-stream"></div>
+    </div>
+
+    <div id="view-messages" class="container">
+        <h2 style="padding:0 10px; margin-bottom:20px;">💌 三高悄悄话</h2>
+        <div id="session-list"></div>
+    </div>
+
+    <div id="view-profile" class="container">
+        <div class="card" style="text-align:center; padding:50px 20px;">
+            <img id="profile-head" style="width:120px; height:120px; border-radius:50%; border:5px solid #fff; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
+            <h2 id="profile-name" style="margin:15px 0 5px 0; font-size:24px;">...</h2>
+            <div id="profile-badge"></div>
+
+            <div style="margin-top:50px; display:grid; gap:15px;">
+                <button id="btn-admin-mgr" class="btn-confirm hidden" style="background:#2d3436; height:55px; border-radius:20px;" onclick="openAdminManager()">
+                    ⚙️ 管理员控制台 (全校成员管控)
+                </button>
+                <button class="btn-confirm" style="background:var(--text-sub); height:55px; border-radius:20px;" onclick="userLogout()">退出系统</button>
+            </div>
+        </div>
+
+        <div id="admin-mgr-box" class="card hidden">
+            <h3 style="margin-top:0; color:var(--danger-red); border-bottom:1px solid #eee; padding-bottom:10px;">全校成员名单</h3>
+            <div id="all-user-list"></div>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchView('wall')">
+            <i>🏛️</i><span>广场</span>
+        </div>
+        <div class="tab-item" onclick="switchView('messages')">
+            <i>📧</i><span>私信</span>
+            <div id="badge-global" class="red-dot-signal hidden">0</div>
+        </div>
+        <div class="tab-item" onclick="switchView('profile')">
+            <i>👤</i><span>我的</span>
+        </div>
+    </div>
+</div>
+
+<div id="msg-overlay" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:#f4f7f6; z-index:10001; display:flex; flex-direction:column;">
+    <div style="background:#fff; padding:20px; display:flex; align-items:center; border-bottom:1px solid #eee; padding-top:calc(env(safe-area-inset-top) + 15px);">
+        <div onclick="closeMsgOverlay()" style="font-size:22px; cursor:pointer; width:40px;">✕</div>
+        <b id="msg-target-name" style="flex:1; text-align:center; font-size:18px;">正在对话...</b>
+        <div style="width:40px;"></div>
+    </div>
+    <div id="msg-stream" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px;"></div>
+    <div style="padding:15px; background:#fff; border-top:1px solid #eee; display:flex; gap:10px; padding-bottom:calc(env(safe-area-inset-bottom) + 10px);">
+        <input id="in-msg" class="wall-input" style="margin:0; border-radius:30px; height:45px;" placeholder="说点什么...">
+        <button class="btn-confirm" style="border-radius:30px;" onclick="sendPrivateMsg()">发送</button>
+    </div>
+</div>
+
+<script>
+    /* ================================================================
+       逻辑控制器 - 灵宝三高管理员旗舰版 (拒绝瘦身，功能全封口)
+       ================================================================
+    */
+
+    const API_URL = "https://ljopokentjagtxwdlzma.supabase.co";
+    const API_KEY = "sb_publishable_OgGGB2YH9O8rv0Vg3K8jEA_rbxA7ZHk";
+    const sango = supabase.createClient(API_URL, API_KEY);
+
+    let me = null;
+    let cachedB64 = "";
+    let curPartner = null;
+    let curColor = "blue";
+    
+    const ADMIN_USER = "何梓晨";
+    const ADMIN_PASS = "hzc123456";
+
+    // 1. 初始化检测
+    window.addEventListener('DOMContentLoaded', () => {
+        const saved = localStorage.getItem('SANGO_USER_V27');
+        if (saved) {
+            me = JSON.parse(saved);
+            launchApp();
+        }
+    });
+
+    // 2. 登录/注册逻辑 (带禁言判定)
+    async function handleLogin() {
+        const name = document.getElementById('in-nickname').value.trim();
+        const pass = document.getElementById('in-admin-pw').value.trim();
+        
+        if (!name) return alert("校友，请输入昵称！");
+        if (name === ADMIN_USER && pass !== ADMIN_PASS) return alert("管理员密令核验失败！");
+
+        // 禁言检查
+        const { data: profile } = await sango.from('profiles').select('*').eq('username', name).single();
+        if (profile && profile.is_banned) return alert("该校友已被管理员封禁，无法进入！");
+
+        me = {
+            name: name,
+            avatar: document.getElementById('img-avatar-pre').src || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
+            isAdmin: (name === ADMIN_USER)
+        };
+
+        // 写入/更新档案
+        await sango.from('profiles').upsert([{ username: name, avatar: me.avatar, last_login: new Date() }]);
+        localStorage.setItem('SANGO_USER_V27', JSON.stringify(me));
+        launchApp();
+    }
+
+    // 3. 启动应用
+    function launchApp() {
+        document.getElementById('page-login').style.display = 'none';
+        document.getElementById('app-body').classList.remove('hidden');
+        
+        document.getElementById('profile-name').innerText = me.name;
+        document.getElementById('my-wall-head').src = me.avatar;
+        document.getElementById('profile-head').src = me.avatar;
+
+        if (me.isAdmin) {
+            document.getElementById('admin-post-tools').classList.remove('hidden');
+            document.getElementById('btn-admin-mgr').classList.remove('hidden');
+            document.getElementById('profile-badge').innerHTML = '<span class="notice-label">官方管理员</span>';
+        }
+
+        renderWall();
+        syncData();
+        updateGlobalBadge();
+    }
+
+    // 4. 修复后的板块切换函数 (重点修复)
+    function switchView(viewId) {
+        // 1. 移除所有 active 类
+        document.querySelectorAll('.container').forEach(c => {
+            c.classList.remove('active');
+            c.style.display = 'none'; // 物理隐藏
+        });
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+
+        // 2. 激活目标
+        const targetView = document.getElementById('view-' + viewId);
+        targetView.classList.add('active');
+        targetView.style.display = 'block'; // 物理显示
+        
+        // 3. 找到并激活对应的导航项
+        // 这里通过点击事件的 currentTarget 来激活
+        if(event && event.currentTarget) {
+            event.currentTarget.classList.add('active');
+        }
+
+        // 4. 专项业务刷新
+        if (viewId === 'messages') renderSessions();
+        if (viewId === 'wall') renderWall();
+    }
+
+    // 5. 墙面动态渲染 (带管理员删除权限)
+    async function renderWall() {
+        const { data: posts } = await sango.from('posts').select('*').order('is_notice', {ascending:false}).order('id', {ascending:false});
+        const { data: cmts } = await sango.from('comments').select('*').order('id', {ascending:true});
+        const likes = JSON.parse(localStorage.getItem('SANGO_LIKES') || "[]");
+
+        let html = "";
+        (posts || []).forEach(p => {
+            const pCmts = (cmts || []).filter(c => c.post_id === p.id);
+            const liked = likes.includes(p.id);
+
+            // 解析管理员颜色逻辑
+            let bodyText = p.content, cClass = "";
+            if (p.username === ADMIN_USER && p.content.startsWith('[color:')) {
+                const match = p.content.match(/\[color:(\w+)\](.*)/s);
+                if (match) { cClass = "t-" + match[1]; bodyText = match[2]; }
+            }
+
+            html += `
+                <div class="card ${p.is_notice ? 'pin-notice' : ''}">
+                    <div style="display:flex; align-items:center; margin-bottom:12px;">
+                        ${p.is_notice ? '<span class="notice-label">三高置顶</span>' : ''}
+                        <img src="${p.avatar || 'https://api.dicebear.com/7.x/identicon/svg?seed='+p.username}" style="width:42px; height:42px; border-radius:50%; margin-right:12px;">
+                        <div style="flex:1">
+                            <b class="${cClass}">${p.username}</b>
+                            ${p.username === ADMIN_USER ? '<span class="admin-tag">管理员</span>' : ''}
+                        </div>
+                        ${(p.username === me.name || me.isAdmin) ? `<span class="admin-del-btn" onclick="killPost(${p.id})">删除动态</span>` : ''}
+                    </div>
+
+                    <div style="font-size:17px; white-space:pre-wrap; line-height:1.7;" class="${cClass}">${bodyText}</div>
+                    ${p.post_img ? `<img src="${p.post_img}" style="width:100%; border-radius:15px; margin-top:12px;">` : ''}
+
+                    <div style="display:flex; gap:18px; margin-top:18px; color:var(--text-sub); font-size:14px; font-weight:bold;">
+                        <span onclick="doLike(${p.id}, ${p.likes})" style="cursor:pointer; ${liked ? 'color:var(--danger-red)' : ''}">❤️ ${p.likes || 0}</span>
+                        <span onclick="document.getElementById('in-cmt-${p.id}').focus()" style="cursor:pointer;">💬 ${pCmts.length}</span>
+                        <span onclick="openChat('${p.username}')" style="cursor:pointer; color:var(--primary);">📧 悄悄话</span>
+                        ${me.isAdmin ? `<span style="margin-left:auto; color:var(--admin-gold); cursor:pointer;" onclick="pinPost(${p.id}, ${p.is_notice})">${p.is_notice?'取消置顶':'📌置顶'}</span>` : ''}
+                    </div>
+
+                    <div style="margin-top:12px; padding-top:12px; border-top:1px solid #f9f9f9;">
+                        ${pCmts.map(c => `
+                            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">
+                                <span><b>${c.username}</b>: ${c.content}</span>
+                                ${(c.username === me.name || me.isAdmin) ? `<span style="color:var(--danger-red); cursor:pointer;" onclick="killCmt(${c.id})">×</span>` : ''}
+                            </div>
+                        `).join('')}
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            <input id="in-cmt-${p.id}" class="wall-input" style="margin:0; padding:8px; font-size:12px; height:35px;" placeholder="我也来说两句...">
+                            <button class="btn-confirm" style="padding:0 12px; font-size:11px; height:35px;" onclick="addCmt(${p.id})">发送</button>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('wall-stream').innerHTML = html || '<div style="text-align:center; padding:80px 0; color:#bdc3c7;">墙上空空如也...</div>';
+    }
+
+    // 6. 核心发帖业务
+    async function submitToWall() {
+        // 再次校验管理员状态
+        const { data: profile } = await sango.from('profiles').select('is_banned').eq('username', me.name).single();
+        if (profile?.is_banned) return alert("禁言账户，无权发声！");
+
+        const text = document.getElementById('post-text').value.trim();
+        const pinned = document.getElementById('check-pin').checked && me.isAdmin;
+        if (!text && !cachedB64) return;
+
+        const body = me.isAdmin ? `[color:${curColor}]${text}` : text;
+        await sango.from('posts').insert([{ username: me.name, content: body, avatar: me.avatar, post_img: cachedB64, is_notice: pinned }]);
+
+        document.getElementById('post-text').value = "";
+        clearMedia();
+        renderWall();
+    }
+
+    // 7. 信号气泡逻辑 (你画圈处)
+    async function updateGlobalBadge() {
+        const { data } = await sango.from('messages').select('id').eq('receiver', me.name).eq('is_read', false);
+        const badge = document.getElementById('badge-global');
+        if (data && data.length > 0) {
+            badge.innerText = data.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    async function renderSessions() {
+        const { data: msgs } = await sango.from('messages').select('*').or(`sender.eq."${me.name}",receiver.eq."${me.name}"`).order('id', {ascending:false});
+        if (!msgs) return;
+        
+        const { data: unreads } = await sango.from('messages').select('sender').eq('receiver', me.name).eq('is_read', false);
+        const partners = [...new Set(msgs.map(m => m.sender === me.name ? m.receiver : m.sender))];
+
+        document.getElementById('session-list').innerHTML = partners.map(user => {
+            const last = msgs.find(m => m.sender === user || m.receiver === user);
+            const count = (unreads || []).filter(u => u.sender === user).length;
+
+            return `
+                <div class="card" onclick="openChat('${user}')" style="display:flex; align-items:center; cursor:pointer;">
+                    <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${user}" style="width:50px; height:50px; border-radius:50%; margin-right:15px;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; justify-content:space-between;">
+                            <b>${user}</b>
+                            ${count > 0 ? `<div class="msg-badge-pulse">${count}</div>` : ''}
+                        </div>
+                        <div style="font-size:13px; color:var(--text-sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${last.content}</div>
+                    </div>
+                </div>`;
+        }).join('') || '<div style="text-align:center; padding:100px 0; color:#bdc3c7;">暂时还没有私信</div>';
+    }
+
+    // 8. 管理员全校管控逻辑
+    async function openAdminManager() {
+        const box = document.getElementById('admin-mgr-box');
+        box.classList.toggle('hidden');
+        if (!box.classList.contains('hidden')) {
+            const { data } = await sango.from('profiles').select('*').order('username', {ascending:true});
+            document.getElementById('all-user-list').innerHTML = (data || []).map(u => `
+                <div class="member-row">
+                    <img src="${u.avatar}" style="width:35px; height:35px; border-radius:50%; margin-right:15px;">
+                    <b style="flex:1">${u.username}</b>
+                    <button class="ban-btn ${u.is_banned ? 'active' : ''}" onclick="toggleBanStatus('${u.username}', ${u.is_banned})">
+                        ${u.is_banned ? '解除封禁' : '执行禁言'}
+                    </button>
+                </div>
+            `).join('');
+        }
+    }
+
+    async function toggleBanStatus(username, current) {
+        if (username === ADMIN_USER) return alert("管理员不可被禁言");
+        if (confirm(`确定要改变 [${username}] 的状态吗？`)) {
+            await sango.from('profiles').update({ is_banned: !current }).eq('username', username);
+            openAdminManager(); 
+        }
+    }
+
+    //9. 通用交互
+    async function doLike(pid, n) {
+        let likes = JSON.parse(localStorage.getItem('SANGO_LIKES') || "[]");
+        const idx = likes.indexOf(pid);
+        let count = (idx === -1) ? (n + 1) : Math.max(0, n - 1);
+        (idx === -1) ? likes.push(pid) : likes.splice(idx, 1);
+        localStorage.setItem('SANGO_LIKES', JSON.stringify(likes));
+        await sango.from('posts').update({ likes: count }).eq('id', pid);
+    }
+
+    async function addCmt(pid) {
+        const val = document.getElementById('in-cmt-'+pid).value.trim();
+        if(!val) return;
+        await sango.from('comments').insert([{ post_id: pid, username: me.name, content: val }]);
+        renderWall();
+    }
+
+    async function killPost(id) { if(confirm("删除这条动态？")) await sango.from('posts').delete().eq('id', id); }
+    async function killCmt(id) { if(confirm("删除这条评论？")) await sango.from('comments').delete().eq('id', id); }
+    async function pinPost(id, s) { await sango.from('posts').update({ is_notice: !s }).eq('id', id); }
+
+    function syncData() {
+        sango.channel('all-changes').on('postgres_changes', { event: '*', schema: 'public', table: '*' }, (payload) => {
+            if (payload.table === 'messages') { updateGlobalBadge(); if(curPartner) loadMsgHistory(); if (document.getElementById('view-messages').classList.contains('active')) renderSessions(); }
+            else { renderWall(); }
+        }).subscribe();
+    }
+
+    function processMedia(input, mode) {
+        if (!input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image(); img.src = e.target.result;
+            img.onload = () => {
+                const cvs = document.createElement('canvas');
+                const max = mode === 'AVATAR' ? 150 : 800;
+                cvs.width = max; cvs.height = img.height * (max/img.width);
+                cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
+                const b64 = cvs.toDataURL('image/jpeg', 0.8);
+                if (mode === 'AVATAR') { document.getElementById('img-avatar-pre').src = b64; document.getElementById('img-avatar-pre').classList.remove('hidden'); document.getElementById('txt-plus').classList.add('hidden'); }
+                else { cachedB64 = b64; document.getElementById('img-post-pre').src = b64; document.getElementById('post-img-box').classList.remove('hidden'); }
+            };
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+
+    async function openChat(partner) {
+        if (partner === me.name) return;
+        curPartner = partner;
+        document.getElementById('msg-target-name').innerText = "与 " + partner + " 对话中";
+        document.getElementById('msg-overlay').classList.remove('hidden');
+        await sango.from('messages').update({ is_read: true }).eq('receiver', me.name).eq('sender', partner);
+        updateGlobalBadge();
+        loadMsgHistory();
+    }
+
+    async function loadMsgHistory() {
+        const { data } = await sango.from('messages').select('*').or(`and(sender.eq."${me.name}",receiver.eq."${curPartner}"),and(sender.eq."${curPartner}",receiver.eq."${me.name}")`).order('id', {ascending:true});
+        document.getElementById('msg-stream').innerHTML = (data || []).map(m => `
+            <div style="max-width:80%; padding:12px 16px; border-radius:18px; font-size:15px; ${m.sender === me.name ? 'align-self:flex-end; background:var(--primary); color:#fff;' : 'align-self:flex-start; background:#fff; color:var(--text-main);'}">
+                ${m.content}
+            </div>
+        `).join('');
+        const stream = document.getElementById('msg-stream'); stream.scrollTop = stream.scrollHeight;
+    }
+
+    async function sendPrivateMsg() {
+        const val = document.getElementById('in-msg').value.trim();
+        if (!val || !curPartner) return;
+        await sango.from('messages').insert([{ sender: me.name, receiver: curPartner, content: val, is_read: false }]);
+        document.getElementById('in-msg').value = "";
+    }
+
+    function selectColor(c, el) { curColor = c; document.querySelectorAll('.color-orb').forEach(o => o.classList.remove('selected')); el.classList.add('selected'); }
+    function clearMedia() { cachedB64 = ""; document.getElementById('post-img-box').classList.add('hidden'); }
+    function closeMsgOverlay() { document.getElementById('msg-overlay').classList.add('hidden'); curPartner = null; }
+    function userLogout() { if(confirm("确定退出？")) { localStorage.clear(); location.reload(); } }
+
+</script>
+</body>
+</html>
