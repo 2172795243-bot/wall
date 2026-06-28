@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API 用量统计面板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:rgb(248,250,252);--bg2:#fff;--bg3:rgb(241,245,249);--bg4:rgb(226,232,240);
+  --tx:rgb(15,23,42);--tx2:rgb(71,85,105);--tx3:rgb(148,163,184);
+  --bd:rgb(226,232,240);--acc:rgb(59,130,246);--acc2:rgb(37,99,235);
+  --r:rgb(239,68,68);--g:rgb(34,197,94);--y:rgb(234,179,8);--p:rgb(168,85,247);
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow2:0 4px 12px rgba(0,0,0,.1);
+  --radius:12px;--sidebar-w:340px;--topbar-h:56px;
+  --chart-grid:#e2e8f0;--chart-label:#64748b;
+}
+[data-theme="dark"]{
+  --bg:rgb(15,23,42);--bg2:rgb(30,41,59);--bg3:rgb(51,65,85);--bg4:rgb(71,85,105);
+  --tx:rgb(241,245,249);--tx2:rgb(203,213,225);--tx3:rgb(100,116,139);
+  --bd:rgb(51,65,85);--acc:rgb(96,165,250);--acc2:rgb(59,130,246);
+  --shadow:0 1px 3px rgba(0,0,0,.3);--shadow2:0 4px 12px rgba(0,0,0,.4);
+  --chart-grid:#334155;--chart-label:#94a3b8;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans SC",sans-serif;
+  background:var(--bg);color:var(--tx);line-height:1.6;min-height:100vh;display:flex;overflow-x:hidden;
+  transition:background .3s,color .3s}
+a{color:var(--acc);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:.875rem}
+input,select,textarea{font-family:inherit;font-size:.875rem;color:var(--tx);background:var(--bg3);
+  border:1px solid var(--bd);border-radius:8px;padding:8px 12px;outline:none;width:100%;
+  transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+
+/* Sidebar */
+.sidebar{position:fixed;left:0;top:0;width:var(--sidebar-w);height:100vh;background:var(--bg2);
+  border-right:1px solid var(--bd);display:flex;flex-direction:column;z-index:100;
+  transition:transform .3s cubic-bezier(.4,0,.2,1);overflow:hidden}
+.sidebar-header{padding:16px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.sidebar-header h2{font-size:1rem;font-weight:700;flex:1;white-space:nowrap}
+.sidebar-body{flex:1;overflow-y:auto;padding:16px 20px}
+.sidebar-footer{padding:16px 20px;border-top:1px solid var(--bd);flex-shrink:0}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;
+  border-radius:8px;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--acc);color:#fff}
+.btn-primary:hover,.btn-primary:active{background:var(--acc2)}
+.btn-danger{background:var(--r);color:#fff}
+.btn-danger:hover,.btn-danger:active{opacity:.85}
+.btn-ghost{background:var(--bg3);color:var(--tx2)}
+.btn-ghost:hover,.btn-ghost:active{background:var(--bg4)}
+.btn-sm{padding:5px 10px;font-size:.8rem;border-radius:6px}
+.btn-block{width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.site-card{background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px;
+  border:1px solid var(--bd);transition:border-color .2s;position:relative}
+.site-card:hover{border-color:var(--acc)}
+.site-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.site-card-name{font-weight:600;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.site-card-actions{display:flex;gap:4px}
+.site-card-body{font-size:.78rem;color:var(--tx2)}
+.site-card-body p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.site-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:600;
+  background:rgba(59,130,246,.12);color:var(--acc)}
+
+/* Main */
+.main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-h);background:var(--bg2);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:50}
+.menu-toggle{display:none;width:36px;height:36px;border-radius:8px;background:var(--bg3);
+  align-items:center;justify-content:center;flex-shrink:0}
+.tabs{display:flex;gap:4px;flex:1}
+.tab{padding:8px 18px;border-radius:8px;font-weight:500;color:var(--tx2);transition:all .15s}
+.tab.active,.tab:active{background:var(--acc);color:#fff}
+.tab:hover:not(.active){background:var(--bg3)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.time-group{display:flex;background:var(--bg3);border-radius:8px;overflow:hidden}
+.time-btn{padding:6px 14px;font-size:.8rem;font-weight:500;color:var(--tx2);transition:all .15s}
+.time-btn.active,.time-btn:active{background:var(--acc);color:#fff}
+.theme-btn{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  background:var(--bg3);font-size:1.1rem;transition:background .15s}
+.theme-btn:hover,.theme-btn:active{background:var(--bg4)}
+
+.content{flex:1;padding:24px;max-width:1400px;width:100%;margin:0 auto}
+
+/* Stats Cards */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--radius);padding:20px;
+  box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
+.stat-card:active{transform:scale(.98)}
+.stat-label{font-size:.8rem;color:var(--tx3);margin-bottom:4px;font-weight:500}
+.stat-value{font-size:1.5rem;font-weight:700;letter-spacing:-.02em}
+.stat-sub{font-size:.75rem;color:var(--tx2);margin-top:4px}
+
+/* Chart container */
+.chart-box{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--radius);padding:20px;
+  box-shadow:var(--shadow);margin-bottom:24px}
+.chart-box-title{font-size:.95rem;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.chart-wrap{width:100%;height:360px;position:relative}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+
+/* Table */
+.data-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{text-align:left;padding:10px 14px;background:var(--bg3);color:var(--tx2);font-weight:600;
+  border-bottom:2px solid var(--bd);white-space:nowrap;position:sticky;top:0}
+td{padding:10px 14px;border-bottom:1px solid var(--bd);white-space:nowrap}
+tr:hover td{background:var(--bg3)}
+.text-right{text-align:right}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;
+  align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal{background:var(--bg2);border-radius:var(--radius);width:100%;max-width:560px;max-height:85vh;
+  display:flex;flex-direction:column;box-shadow:var(--shadow2);transform:translateY(20px);transition:transform .2s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-header{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:1.05rem;font-weight:700}
+.modal-body{padding:24px;overflow-y:auto;flex:1}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:10px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--tx2);margin-bottom:6px}
+.form-group small{display:block;font-size:.72rem;color:var(--tx3);margin-top:4px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Detail drawer */
+.detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:180;opacity:0;pointer-events:none;transition:opacity .2s}
+.detail-overlay.open{opacity:1;pointer-events:auto}
+.detail-panel{position:fixed;right:0;top:0;width:480px;max-width:100%;height:100vh;background:var(--bg2);
+  z-index:190;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;box-shadow:-4px 0 20px rgba(0,0,0,.1)}
+.detail-panel.open{transform:translateX(0)}
+.detail-panel-header{padding:20px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.detail-panel-body{flex:1;overflow-y:auto;padding:20px 24px}
+
+/* Empty / Loading */
+.empty-state{text-align:center;padding:60px 20px;color:var(--tx3)}
+.empty-state svg{width:64px;height:64px;margin-bottom:16px;opacity:.4}
+.empty-state p{font-size:.9rem;margin-bottom:8px}
+.loading-spinner{display:inline-block;width:20px;height:20px;border:2.5px solid var(--bg4);
+  border-top-color:var(--acc);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg2);
+  color:var(--tx);padding:10px 24px;border-radius:10px;box-shadow:var(--shadow2);
+  border:1px solid var(--bd);font-size:.85rem;z-index:999;opacity:0;
+  transition:opacity .3s,transform .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Price tag */
+.price-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:.82rem}
+.price-row label{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.price-row input{width:90px;padding:5px 8px;text-align:right}
+
+/* CORS notice */
+.cors-notice{background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:16px;
+  font-size:.78rem;color:var(--tx2);margin-top:12px;line-height:1.7}
+.cors-notice strong{color:var(--tx)}
+
+/* Responsive */
+@media(max-width:1024px){
+  .charts-grid{grid-template-columns:1fr}
+}
+@media(max-width:768px){
+  :root{--sidebar-w:300px}
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;
+    opacity:0;pointer-events:none;transition:opacity .3s}
+  .sidebar-backdrop.open{opacity:1;pointer-events:auto}
+  .main{margin-left:0}
+  .menu-toggle{display:flex}
+  .content{padding:16px}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .chart-wrap{height:280px}
+  .detail-panel{width:100%}
+  .topbar{padding:0 12px;gap:8px}
+  .tab{padding:6px 12px;font-size:.85rem}
+  .time-btn{padding:5px 10px;font-size:.75rem}
+  .form-row{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr}
+  .time-group{display:none}
+  .mobile-time-select{display:block!important}
+}
+.mobile-time-select{display:none;width:auto}
+</style>
+</head>
+<body>
+<!-- Sidebar Backdrop (mobile) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar" role="complementary" aria-label="API配置面板">
+  <div class="sidebar-header">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <h2>API 站点配置</h2>
+    <button class="btn btn-sm btn-ghost" onclick="toggleSidebar()" aria-label="关闭侧边栏" style="display:none" id="sidebarCloseBtn">✕</button>
+  </div>
+  <div class="sidebar-body" id="siteList">
+    <div class="empty-state" id="siteEmpty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 9v4m0 4h.01M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+      <p>暂无站点配置</p>
+      <p style="font-size:.78rem">点击下方按钮添加 API 站点</p>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <button class="btn btn-primary btn-block" onclick="openAddSiteModal()" style="margin-bottom:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      添加站点
+    </button>
+    <button class="btn btn-ghost btn-block" onclick="openPriceModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>
+      费用单价设置
+    </button>
+    <div class="cors-notice" style="margin-top:12px">
+      <strong>⚠ 跨域说明</strong><br>
+      若遇到 CORS 错误，可尝试：<br>
+      1. 在 API 地址前加 <code>https://api.allorigins.win/raw?url=</code> 代理<br>
+      2. 使用浏览器扩展 (如 CORS Unblock)<br>
+      3. 确认 API 服务端已开启 CORS
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <header class="topbar" role="banner">
+    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()" aria-label="打开配置面板">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-tab="overview" onclick="switchTab('overview')">概述</button>
+      <button class="tab" role="tab" data-tab="models" onclick="switchTab('models')">模型</button>
+    </nav>
+    <div class="topbar-right">
+      <select class="mobile-time-select" onchange="setTimeRange(this.value)" aria-label="时间筛选">
+        <option value="all">全部</option><option value="30">30天</option><option value="7">7天</option>
+      </select>
+      <div class="time-group" role="radiogroup" aria-label="时间筛选">
+        <button class="time-btn active" data-range="all" onclick="setTimeRange('all')">全部</button>
+        <button class="time-btn" data-range="30" onclick="setTimeRange('30')">30天</button>
+        <button class="time-btn" data-range="7" onclick="setTimeRange('7')">7天</button>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()" aria-label="切换主题" id="themeBtn">🌙</button>
+    </div>
+  </header>
+
+  <main class="content" id="contentArea">
+    <!-- Overview Tab -->
+    <section id="tab-overview" role="tabpanel">
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card"><div class="stat-label">总输入 Tokens</div><div class="stat-value" id="statInput">0</div></div>
+        <div class="stat-card"><div class="stat-label">总输出 Tokens</div><div class="stat-value" id="statOutput">0</div></div>
+        <div class="stat-card"><div class="stat-label">总 Tokens</div><div class="stat-value" id="statTotal">0</div></div>
+        <div class="stat-card"><div class="stat-label">预估总费用</div><div class="stat-value" id="statCost">¥0.00</div></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="17" rx="1"/></svg>
+          每日用量趋势
+        </div>
+        <div class="chart-wrap" id="chartDaily"></div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--p)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 010 18"/><path d="M12 3v9h9"/></svg>
+            模型占比
+          </div>
+          <div class="chart-wrap" id="chartPie"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--g)" stroke-width="2"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+            模型排行
+          </div>
+          <div class="chart-wrap" id="chartBar"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Models Tab -->
+    <section id="tab-models" role="tabpanel" style="display:none">
+      <div class="chart-box">
+        <div class="chart-box-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          模型用量明细
+        </div>
+        <div class="data-table-wrap">
+          <table id="modelTable">
+            <thead>
+              <tr>
+                <th>模型</th><th class="text-right">输入 Tokens</th><th class="text-right">输出 Tokens</th>
+                <th class="text-right">总 Tokens</th><th class="text-right">占比</th>
+                <th class="text-right">费用</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="modelTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">模型每日用量对比</div>
+        <div class="chart-wrap" id="chartModelDaily" style="height:400px"></div>
+      </div>
+    </section>
+
+    <!-- Fetch button -->
+    <div style="text-align:center;padding:20px 0" id="fetchArea">
+      <button class="btn btn-primary" style="padding:12px 40px;font-size:1rem;border-radius:12px" id="fetchBtn" onclick="fetchAllData()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 019 20.49"/></svg>
+        一键查询用量
+      </button>
+      <p style="font-size:.78rem;color:var(--tx3);margin-top:8px">点击按钮从各站点拉取用量数据</p>
+    </div>
+  </main>
+</div>
+
+<!-- Add/Edit Site Modal -->
+<div class="modal-overlay" id="siteModal">
+  <div class="modal" role="dialog" aria-labelledby="siteModalTitle">
+    <div class="modal-header">
+      <h3 id="siteModalTitle">添加站点</h3>
+      <button class="btn btn-sm btn-ghost" onclick="closeSiteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>站点名称</label>
+        <input id="siteName" placeholder="如：主站 / 备用站" maxlength="50">
+      </div>
+      <div class="form-group">
+        <label>API 类型</label>
+        <select id="siteType">
+          <option value="openai">OpenAI 兼容 (/dashboard/billing/usage)</option>
+          <option value="newapi">New API / One API (/api/log/self)</option>
+        </select>
+        <small>根据您使用的 API 管理平台选择对应类型</small>
+      </div>
+      <div class="form-group">
+        <label>API 基础地址</label>
+        <input id="siteUrl" placeholder="https://api.example.com" type="url">
+        <small>不带末尾斜杠，如 https://api.openai.com</small>
+      </div>
+      <div class="form-group">
+        <label>API 密钥</label>
+        <input id="siteKey" placeholder="sk-..." type="password">
+      </div>
+      <div class="form-group">
+        <label>备注（可选）</label>
+        <input id="siteNote" placeholder="备注信息" maxlength="100">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSiteModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveSite()" id="saveSiteBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Price Modal -->
+<div class="modal-overlay" id="priceModal">
+  <div class="modal" role="dialog" aria-labelledby="priceModalTitle">
+    <div class="modal-header">
+      <h3 id="priceModalTitle">模型单价设置（元 / 百万 Tokens）</h3>
+      <button class="btn btn-sm btn-ghost" onclick="closePriceModal()">✕</button>
+    </div>
+    <div class="modal-body" id="priceList">
+      <p style="font-size:.82rem;color:var(--tx3);margin-bottom:12px">查询数据后此处将列出所有模型，可分别设置输入/输出单价。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePriceModal()">取消</button>
+      <button class="btn btn-primary" onclick="savePrices()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel" role="dialog" aria-label="详情">
+  <div class="detail-panel-header">
+    <h3 id="detailTitle">详情</h3>
+    <button class="btn btn-sm btn-ghost" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-panel-body" id="detailBody"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ====== State ====== */
+let sites = JSON.parse(localStorage.getItem('api_sites') || '[]');
+let prices = JSON.parse(localStorage.getItem('api_prices') || '{}');
+let allRecords = []; // {date, model, input, output, siteName, siteId}
+let currentTab = 'overview';
+let currentRange = 'all';
+let editingSiteId = null;
+let charts = {};
+
+/* ====== Utils ====== */
+const $ = id => document.getElementById(id);
+const fmtNum = n => {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+};
+const fmtMoney = n => '¥' + n.toFixed(2);
+const dayStr = d => d.toISOString().slice(0, 10);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const COLORS = ['#3b82f6','#8b5cf6','#ef4444','#f59e0b','#10b981','#ec4899','#06b6d4','#f97316','#6366f1','#14b8a6','#e11d48','#84cc16','#a855f7','#0ea5e9','#d946ef'];
+
+function showToast(msg, dur = 2500) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function getFilteredRecords() {
+  if (currentRange === 'all') return allRecords;
+  const days = parseInt(currentRange);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = dayStr(cutoff);
+  return allRecords.filter(r => r.date >= cutStr);
+}
+
+function calcCost(model, input, output) {
+  const p = prices[model] || {};
+  const pi = p.input || 0;
+  const po = p.output || 0;
+  return (input * pi + output * po) / 1e6;
+}
+
+/* ====== Theme ====== */
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  $('themeBtn').textContent = saved === 'dark' ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  $('themeBtn').textContent = next === 'dark' ? '☀️' : '🌙';
+  refreshCharts();
+}
+initTheme();
+
+/* ====== Sidebar ====== */
+function toggleSidebar() {
+  const sb = $('sidebar');
+  const bd = $('sidebarBackdrop');
+  const cb = $('sidebarCloseBtn');
+  const isOpen = sb.classList.toggle('open');
+  bd.classList.toggle('open', isOpen);
+  if (window.innerWidth <= 768) cb.style.display = isOpen ? 'block' : 'none';
+}
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) {
+    $('sidebar').classList.remove('open');
+    $('sidebarBackdrop').classList.remove('open');
+    $('sidebarCloseBtn').style.display = 'none';
+  }
+});
+
+/* ====== Tabs ====== */
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  $('tab-overview').style.display = tab === 'overview' ? '' : 'none';
+  $('tab-models').style.display = tab === 'models' ? '' : 'none';
+  if (tab === 'models') refreshModelTable();
+  refreshCharts();
+}
+
+/* ====== Time Range ====== */
+function setTimeRange(range) {
+  currentRange = range;
+  document.querySelectorAll('.time-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
+  document.querySelector('.mobile-time-select').value = range;
+  refreshAll();
+}
+
+/* ====== Site CRUD ====== */
+function renderSites() {
+  const list = $('siteList');
+  const empty = $('siteEmpty');
+  const cards = list.querySelectorAll('.site-card');
+  cards.forEach(c => c.remove());
+  if (sites.length === 0) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  sites.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'site-card';
+    div.innerHTML = `
+      <div class="site-card-head">
+        <span class="site-card-name" title="${s.name}">${s.name}</span>
+        <div class="site-card-actions">
+          <button class="btn btn-sm btn-ghost" onclick="editSite('${s.id}')" aria-label="编辑">✏️</button>
+          <button class="btn btn-sm btn-ghost" onclick="deleteSite('${s.id}')" aria-label="删除" style="color:var(--r)">🗑</button>
+        </div>
+      </div>
+      <div class="site-card-body">
+        <p><span class="site-tag">${s.type === 'newapi' ? 'New API' : 'OpenAI'}</span></p>
+        <p title="${s.url}">🔗 ${s.url}</p>
+        <p>🔑 ${s.key.slice(0, 8)}${'*'.repeat(Math.min(s.key.length - 8, 16))}</p>
+        ${s.note ? '<p>📝 ' + s.note + '</p>' : ''}
+      </div>`;
+    list.appendChild(div);
+  });
+}
+function saveSitesToStorage() { localStorage.setItem('api_sites', JSON.stringify(sites)); }
+
+function openAddSiteModal() {
+  editingSiteId = null;
+  $('siteModalTitle').textContent = '添加站点';
+  $('siteName').value = '';
+  $('siteType').value = 'openai';
+  $('siteUrl').value = '';
+  $('siteKey').value = '';
+  $('siteNote').value = '';
+  $('siteModal').classList.add('open');
+}
+function editSite(id) {
+  const s = sites.find(x => x.id === id);
+  if (!s) return;
+  editingSiteId = id;
+  $('siteModalTitle').textContent = '编辑站点';
+  $('siteName').value = s.name;
+  $('siteType').value = s.type;
+  $('siteUrl').value = s.url;
+  $('siteKey').value = s.key;
+  $('siteNote').value = s.note || '';
+  $('siteModal').classList.add('open');
+}
+function closeSiteModal() { $('siteModal').classList.remove('open'); }
+function saveSite() {
+  const name = $('siteName').value.trim();
+  const type = $('siteType').value;
+  const url = $('siteUrl').value.trim().replace(/\/+$/, '');
+  const key = $('siteKey').value.trim();
+  const note = $('siteNote').value.trim();
+  if (!name || !url || !key) { showToast('请填写名称、地址和密钥'); return; }
+  if (editingSiteId) {
+    const s = sites.find(x => x.id === editingSiteId);
+    Object.assign(s, { name, type, url, key, note });
+  } else {
+    sites.push({ id: uid(), name, type, url, key, note });
+  }
+  saveSitesToStorage();
+  renderSites();
+  closeSiteModal();
+  showToast(editingSiteId ? '站点已更新' : '站点已添加');
+}
+function deleteSite(id) {
+  if (!confirm('确定删除此站点？')) return;
+  sites = sites.filter(x => x.id !== id);
+  saveSitesToStorage();
+  renderSites();
+  showToast('站点已删除');
+}
+
+/* ====== Data Fetching ====== */
+async function fetchAllData() {
+  if (sites.length === 0) { showToast('请先添加至少一个站点'); return; }
+  const btn = $('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span> 查询中…';
+  allRecords = [];
+  let success = 0, fail = 0;
+
+  for (const site of sites) {
+    try {
+      const records = site.type === 'newapi' ? await fetchNewAPI(site) : await fetchOpenAI(site);
+      allRecords.push(...records);
+      success++;
+    } catch (e) {
+      console.error(`Fetch failed for ${site.name}:`, e);
+      fail++;
+    }
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M20.49 9A9 9 0 005.64 5.64L4 4m16 16l-1.64-1.64A9 9 0 019 20.49"/></svg> 一键查询用量`;
+  showToast(`查询完成：${success} 个成功，${fail} 个失败，共 ${allRecords.length} 条记录`);
+  refreshAll();
+}
+
+async function fetchOpenAI(site) {
+  // OpenAI billing/usage：返回 daily_costs，每项含 line_items（模型名+cost）
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 90);
+  const url = `${site.url}/dashboard/billing/usage?start_date=${dayStr(startDate)}&end_date=${dayStr(endDate)}`;
+  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${site.key}` } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const records = [];
+  if (data.daily_costs) {
+    for (const day of data.daily_costs) {
+      const date = dayStr(new Date(day.timestamp * 1000));
+      for (const item of (day.line_items || [])) {
+        if (item.cost <= 0) continue;
+        // OpenAI 返回 cost（美分），此处用 cost 近似估算 token（cost / 模型价格）
+        // 因为此接口不直接返回 token 数，故将 cost 存为特殊标记
+        records.push({
+          date, model: item.name,
+          input: Math.round(item.cost * 100), // 以 cost 单位（0.01 美分）近似
+          output: 0,
+          cost_raw: item.cost / 100, // 转为美元
+          siteName: site.name, siteId: site.id
+        });
+      }
+    }
+  }
+  // 兼容部分代理返回 data 数组
+  if (data.data && Array.isArray(data.data)) {
+    for (const item of data.data) {
+      records.push({
+        date: item.date || item.day || dayStr(new Date((item.created_at || item.timestamp || 0) * 1000)),
+        model: item.model_name || item.model || 'unknown',
+        input: item.prompt_tokens || item.input_tokens || 0,
+        output: item.completion_tokens || item.output_tokens || 0,
+        siteName: site.name, siteId: site.id
+      });
+    }
+  }
+  return records;
+}
+
+async function fetchNewAPI(site) {
+  // New API / One API: /api/log/self 分页拉取日志
+  const records = [];
+  let page = 0;
+  const endTs = Math.floor(Date.now() / 1000);
+  const startTs = endTs - 90 * 86400;
+  const perPage = 100;
+  let maxPages = 50; // 安全上限
+
+  while (maxPages-- > 0) {
+    const url = `${site.url}/api/log/self?p=${page}&per_page=${perPage}&start_timestamp=${startTs}&end_timestamp=${endTs}`;
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${site.key}` } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const items = json.data?.data || json.data || [];
+    if (!Array.isArray(items) || items.length === 0) break;
+
+    for (const item of items) {
+      const ts = item.created_at || item.timestamp || 0;
+      records.push({
+        date: ts ? dayStr(new Date(ts * 1000)) : 'unknown',
+        model: item.model_name || item.model || 'unknown',
+        input: item.prompt_tokens || item.input_tokens || 0,
+        output: item.completion_tokens || item.output_tokens || 0,
+        quota: item.quota || 0,
+        siteName: site.name, siteId: site.id
+      });
+    }
+    if (items.length < perPage) break;
+    page++;
+  }
+  return records;
+}
+
+/* ====== Refresh ====== */
+function refreshAll() {
+  refreshStats();
+  refreshCharts();
+  if (currentTab === 'models') refreshModelTable();
+}
+
+function refreshStats() {
+  const data = getFilteredRecords();
+  let totalIn = 0, totalOut = 0, totalCost = 0;
+  data.forEach(r => {
+    totalIn += r.input;
+    totalOut += r.output;
+    totalCost += r.cost_raw || calcCost(r.model, r.input, r.output);
+  });
+  $('statInput').textContent = fmtNum(totalIn);
+  $('statOutput').textContent = fmtNum(totalOut);
+  $('statTotal').textContent = fmtNum(totalIn + totalOut);
+  $('statCost').textContent = fmtMoney(totalCost);
+}
+
+/* ====== Charts ====== */
+function getThemeOpts() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return {
+    bg: 'transparent',
+    textColor: dark ? '#cbd5e1' : '#475569',
+    gridColor: dark ? '#334155' : '#e2e8f0',
+    tooltipBg: dark ? '#1e293b' : '#fff',
+    tooltipBorder: dark ? '#475569' : '#e2e8f0',
+  };
+}
+
+function refreshCharts() {
+  const data = getFilteredRecords();
+  if (currentTab === 'overview') {
+    renderDailyChart(data);
+    renderPieChart(data);
+    renderBarChart(data);
+  } else {
+    renderModelDailyChart(data);
+  }
+}
+
+function ensureChart(domId) {
+  const dom = $(domId);
+  if (!dom) return null;
+  if (charts[domId]) { charts[domId].dispose(); }
+  charts[domId] = echarts.init(dom);
+  return charts[domId];
+}
+
+function renderDailyChart(data) {
+  const chart = ensureChart('chartDaily');
+  if (!chart) return;
+  const t = getThemeOpts();
+  // 按日聚合
+  const dayMap = {};
+  data.forEach(r => {
+    if (!dayMap[r.date]) dayMap[r.date] = { input: 0, output: 0 };
+    dayMap[r.date].input += r.input;
+    dayMap[r.date].output += r.output;
+  });
+  const dates = Object.keys(dayMap).sort();
+  const inputArr = dates.map(d => dayMap[d].input);
+  const outputArr = dates.map(d => dayMap[d].output);
+
+  chart.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder, textStyle: { color: t.textColor },
+      formatter: params => {
+        let s = `<strong>${params[0].axisValue}</strong><br>`;
+        params.forEach(p => s += `${p.marker} ${p.seriesName}: ${fmtNum(p.value)}<br>`);
+        return s;
+      }
+    },
+    legend: { data: ['输入 Tokens', '输出 Tokens'], textStyle: { color: t.textColor }, bottom: 0 },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: t.textColor, fontSize: 11, rotate: dates.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: t.gridColor } } },
+    yAxis: { type: 'value', axisLabel: { color: t.textColor, formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: t.gridColor } } },
+    series: [
+      { name: '输入 Tokens', type: 'bar', stack: 'total', data: inputArr, itemStyle: { color: '#3b82f6', borderRadius: [0,0,0,0] } },
+      { name: '输出 Tokens', type: 'bar', stack: 'total', data: outputArr, itemStyle: { color: '#8b5cf6', borderRadius: [4,4,0,0] } }
+    ]
+  });
+  chart.off('click');
+  chart.on('click', params => {
+    if (params.componentType === 'series') showDateDetail(params.name);
+  });
+  chart.resize();
+}
+
+function renderPieChart(data) {
+  const chart = ensureChart('chartPie');
+  if (!chart) return;
+  const t = getThemeOpts();
+  const modelMap = {};
+  data.forEach(r => {
+    if (!modelMap[r.model]) modelMap[r.model] = 0;
+    modelMap[r.model] += r.input + r.output;
+  });
+  const pieData = Object.entries(modelMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value], i) => ({ name, value, itemStyle: { color: COLORS[i % COLORS.length] } }));
+
+  chart.setOption({
+    tooltip: { trigger: 'item', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder, textStyle: { color: t.textColor },
+      formatter: p => `${p.marker} ${p.name}<br>总量: ${fmtNum(p.value)}<br>占比: ${p.percent}%`
+    },
+    series: [{
+      type: 'pie', radius: ['40%', '72%'], center: ['50%', '50%'],
+      label: { color: t.textColor, fontSize: 11, formatter: '{b}\n{d}%' },
+      emphasis: { label: { fontSize: 14, fontWeight: 'bold' } },
+      data: pieData
+    }]
+  });
+  chart.off('click');
+  chart.on('click', params => showModelDetail(params.name));
+  chart.resize();
+}
+
+function renderBarChart(data) {
+  const chart = ensureChart('chartBar');
+  if (!chart) return;
+  const t = getThemeOpts();
+  const modelMap = {};
+  data.forEach(r => {
+    if (!modelMap[r.model]) modelMap[r.model] = { input: 0, output: 0 };
+    modelMap[r.model].input += r.input;
+    modelMap[r.model].output += r.output;
+  });
+  const sorted = Object.entries(modelMap).sort((a, b) => (b[1].input + b[1].output) - (a[1].input + a[1].output)).slice(0, 15);
+  const models = sorted.map(s => s[0]).reverse();
+  const inputs = sorted.map(s => s[1].input).reverse();
+  const outputs = sorted.map(s => s[1].output).reverse();
+
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder, textStyle: { color: t.textColor },
+      formatter: params => {
+        let s = `<strong>${params[0].axisValue}</strong><br>`;
+        params.forEach(p => s += `${p.marker} ${p.seriesName}: ${fmtNum(p.value)}<br>`);
+        return s;
+      }
+    },
+    legend: { data: ['输入', '输出'], textStyle: { color: t.textColor }, bottom: 0 },
+    grid: { left: 120, right: 30, top: 10, bottom: 36 },
+    xAxis: { type: 'value', axisLabel: { color: t.textColor, formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: t.gridColor } } },
+    yAxis: { type: 'category', data: models, axisLabel: { color: t.textColor, fontSize: 11, width: 100, overflow: 'truncate' }, axisLine: { lineStyle: { color: t.gridColor } } },
+    series: [
+      { name: '输入', type: 'bar', stack: 't', data: inputs, itemStyle: { color: '#3b82f6' } },
+      { name: '输出', type: 'bar', stack: 't', data: outputs, itemStyle: { color: '#8b5cf6', borderRadius: [0,4,4,0] } }
+    ]
+  });
+  chart.off('click');
+  chart.on('click', params => { if (params.componentType === 'series') showModelDetail(params.name); });
+  chart.resize();
+}
+
+function renderModelDailyChart(data) {
+  const chart = ensureChart('chartModelDaily');
+  if (!chart) return;
+  const t = getThemeOpts();
+  // 获取 top 8 模型
+  const modelTotals = {};
+  data.forEach(r => { modelTotals[r.model] = (modelTotals[r.model] || 0) + r.input + r.output; });
+  const topModels = Object.entries(modelTotals).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => x[0]);
+  // 按日聚合
+  const dayModelMap = {};
+  const allDates = new Set();
+  data.forEach(r => {
+    if (!topModels.includes(r.model)) return;
+    allDates.add(r.date);
+    const key = r.date + '|' + r.model;
+    dayModelMap[key] = (dayModelMap[key] || 0) + r.input + r.output;
+  });
+  const dates = [...allDates].sort();
+  const series = topModels.map((model, i) => ({
+    name: model, type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
+    lineStyle: { width: 2 },
+    itemStyle: { color: COLORS[i % COLORS.length] },
+    data: dates.map(d => dayModelMap[d + '|' + model] || 0)
+  }));
+
+  chart.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder, textStyle: { color: t.textColor },
+      formatter: params => {
+        let s = `<strong>${params[0].axisValue}</strong><br>`;
+        params.filter(p => p.value > 0).sort((a, b) => b.value - a.value)
+          .forEach(p => s += `${p.marker} ${p.seriesName}: ${fmtNum(p.value)}<br>`);
+        return s;
+      }
+    },
+    legend: { data: topModels, textStyle: { color: t.textColor, fontSize: 11 }, bottom: 0, type: 'scroll' },
+    grid: { left: 60, right: 20, top: 20, bottom: 50 },
+    xAxis: { type: 'category', data: dates, axisLabel: { color: t.textColor, fontSize: 11, rotate: dates.length > 15 ? 45 : 0 }, axisLine: { lineStyle: { color: t.gridColor } } },
+    yAxis: { type: 'value', axisLabel: { color: t.textColor, formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: t.gridColor } } },
+    series
+  });
+  chart.resize();
+}
+
+/* ====== Model Table ====== */
+function refreshModelTable() {
+  const data = getFilteredRecords();
+  const tbody = $('modelTableBody');
+  const modelMap = {};
+  data.forEach(r => {
+    if (!modelMap[r.model]) modelMap[r.model] = { input: 0, output: 0 };
+    modelMap[r.model].input += r.input;
+    modelMap[r.model].output += r.output;
+  });
+  const grandTotal = Object.values(modelMap).reduce((s, m) => s + m.input + m.output, 0) || 1;
+  const sorted = Object.entries(modelMap).sort((a, b) => (b[1].input + b[1].output) - (a[1].input + a[1].output));
+  tbody.innerHTML = sorted.map(([model, d]) => {
+    const total = d.input + d.output;
+    const pct = (total / grandTotal * 100).toFixed(1);
+    const cost = calcCost(model, d.input, d.output);
+    return `<tr>
+      <td><strong>${model}</strong></td>
+      <td class="text-right">${fmtNum(d.input)}</td>
+      <td class="text-right">${fmtNum(d.output)}</td>
+      <td class="text-right">${fmtNum(total)}</td>
+      <td class="text-right">${pct}%</td>
+      <td class="text-right">${fmtMoney(cost)}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="showModelDetail('${model}')">详情</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ====== Detail Panel ====== */
+function showDateDetail(date) {
+  $('detailTitle').textContent = `${date} 用量明细`;
+  const data = getFilteredRecords().filter(r => r.date === date);
+  // 按模型聚合
+  const modelMap = {};
+  data.forEach(r => {
+    if (!modelMap[r.model]) modelMap[r.model] = {};
+    if (!modelMap[r.model][r.siteName]) modelMap[r.model][r.siteName] = { input: 0, output: 0 };
+    modelMap[r.model][r.siteName].input += r.input;
+    modelMap[r.model][r.siteName].output += r.output;
+  });
+  let html = '';
+  for (const [model, siteData] of Object.entries(modelMap)) {
+    html += `<h4 style="margin:16px 0 8px;font-size:.9rem">${model}</h4>`;
+    html += `<table><thead><tr><th>站点</th><th class="text-right">输入</th><th class="text-right">输出</th><th class="text-right">合计</th></tr></thead><tbody>`;
+    let mTotal = { i: 0, o: 0 };
+    for (const [site, d] of Object.entries(siteData)) {
+      html += `<tr><td>${site}</td><td class="text-right">${fmtNum(d.input)}</td><td class="text-right">${fmtNum(d.output)}</td><td class="text-right">${fmtNum(d.input + d.output)}</td></tr>`;
+      mTotal.i += d.input;
+      mTotal.o += d.output;
+    }
+    html += `<tr style="font-weight:700;background:var(--bg3)"><td>小计</td><td class="text-right">${fmtNum(mTotal.i)}</td><td class="text-right">${fmtNum(mTotal.o)}</td><td class="text-right">${fmtNum(mTotal.i + mTotal.o)}</td></tr>`;
+    html += `</tbody></table>`;
+  }
+  if (!html) html = '<p style="color:var(--tx3);text-align:center;padding:40px 0">该日期无数据</p>';
+  $('detailBody').innerHTML = html;
+  $('detailOverlay').classList.add('open');
+  $('detailPanel').classList.add('open');
+}
+
+function showModelDetail(model) {
+  $('detailTitle').textContent = `${model} 用量明细`;
+  const data = getFilteredRecords().filter(r => r.model === model);
+  // 按站点聚合
+  const siteMap = {};
+  data.forEach(r => {
+    if (!siteMap[r.siteName]) siteMap[r.siteName] = {};
+    if (!siteMap[r.siteName][r.date]) siteMap[r.siteName][r.date] = { input: 0, output: 0 };
+    siteMap[r.siteName][r.date].input += r.input;
+    siteMap[r.siteName][r.date].output += r.output;
+  });
+  // 汇总
+  let totalIn = 0, totalOut = 0;
+  data.forEach(r => { totalIn += r.input; totalOut += r.output; });
+  const cost = calcCost(model, totalIn, totalOut);
+
+  let html = `<div class="stats-row" style="margin-bottom:20px">
+    <div class="stat-card"><div class="stat-label">输入</div><div class="stat-value" style="font-size:1.2rem">${fmtNum(totalIn)}</div></div>
+    <div class="stat-card"><div class="stat-label">输出</div><div class="stat-value" style="font-size:1.2rem">${fmtNum(totalOut)}</div></div>
+    <div class="stat-card"><div class="stat-label">费用</div><div class="stat-value" style="font-size:1.2rem">${fmtMoney(cost)}</div></div>
+  </div>`;
+
+  for (const [site, dateData] of Object.entries(siteMap)) {
+    html += `<h4 style="margin:16px 0 8px;font-size:.9rem">📡 ${site}</h4>`;
+    const dates = Object.keys(dateData).sort().reverse();
+    html += `<table><thead><tr><th>日期</th><th class="text-right">输入</th><th class="text-right">输出</th><th class="text-right">合计</th></tr></thead><tbody>`;
+    let sTotal = { i: 0, o: 0 };
+    dates.forEach(d => {
+      const dd = dateData[d];
+      html += `<tr><td>${d}</td><td class="text-right">${fmtNum(dd.input)}</td><td class="text-right">${fmtNum(dd.output)}</td><td class="text-right">${fmtNum(dd.input + dd.output)}</td></tr>`;
+      sTotal.i += dd.input;
+      sTotal.o += dd.output;
+    });
+    html += `<tr style="font-weight:700;background:var(--bg3)"><td>小计</td><td class="text-right">${fmtNum(sTotal.i)}</td><td class="text-right">${fmtNum(sTotal.o)}</td><td class="text-right">${fmtNum(sTotal.i + sTotal.o)}</td></tr>`;
+    html += `</tbody></table>`;
+  }
+  $('detailBody').innerHTML = html;
+  $('detailOverlay').classList.add('open');
+  $('detailPanel').classList.add('open');
+}
+
+function closeDetail() {
+  $('detailOverlay').classList.remove('open');
+  $('detailPanel').classList.remove('open');
+}
+
+/* ====== Price Modal ====== */
+function openPriceModal() {
+  const models = new Set(allRecords.map(r => r.model));
+  const list = $('priceList');
+  if (models.size === 0) {
+    list.innerHTML = '<p style="color:var(--tx3);font-size:.85rem">请先查询数据，获取模型列表后再设置单价。</p>';
+  } else {
+    let html = '<p style="font-size:.82rem;color:var(--tx3);margin-bottom:12px">单位：元 / 百万 Tokens</p>';
+    [...models].sort().forEach(m => {
+      const p = prices[m] || {};
+      html += `<div class="price-row">
+        <label title="${m}">${m}</label>
+        <input type="number" step="0.01" min="0" placeholder="输入" value="${p.input || ''}" data-model="${m}" data-dir="input">
+        <input type="number" step="0.01" min="0" placeholder="输出" value="${p.output || ''}" data-model="${m}" data-dir="output">
+      </div>`;
+    });
+    list.innerHTML = html;
+  }
+  $('priceModal').classList.add('open');
+}
+function closePriceModal() { $('priceModal').classList.remove('open'); }
+function savePrices() {
+  const inputs = $('priceList').querySelectorAll('input[data-model]');
+  inputs.forEach(inp => {
+    const model = inp.dataset.model;
+    const dir = inp.dataset.dir;
+    if (!prices[model]) prices[model] = {};
+    prices[model][dir] = parseFloat(inp.value) || 0;
+  });
+  localStorage.setItem('api_prices', JSON.stringify(prices));
+  closePriceModal();
+  refreshAll();
+  showToast('单价已保存');
+}
+
+/* ====== Resize ====== */
+window.addEventListener('resize', () => {
+  Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+});
+
+/* ====== Init ====== */
+renderSites();
+refreshAll();
+</script>
+</body>
+</html>
