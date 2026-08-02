@@ -9,31 +9,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: checkout
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: setup python
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    - name: install system deps
+    - name: Install system deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git zip unzip openjdk-17-jdk           autoconf libtool pkg-config zlib1g-dev libncurses-dev           cmake libffi-dev libssl-dev
+        sudo apt-get install -y build-essential git zip unzip openjdk-17-jdk \
+          autoconf libtool pkg-config zlib1g-dev libncurses-dev \
+          cmake libffi-dev libssl-dev
 
-    - name: install buildozer
+    - name: Install Buildozer
       run: |
         pip install --upgrade pip
         pip install buildozer cython
 
-    - name: build apk
+    - name: Build APK
       env:
         BUILDOZER_WARN_ON_ROOT: 0
+        ANDROID_ACCEPT_LICENSE: 1
       run: |
         buildozer -v android debug
 
-    - name: upload apk
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: python-crawler-apk
